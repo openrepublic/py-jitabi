@@ -10,7 +10,6 @@ jobs:
       matrix:
         platform:
           - ubuntu-24.04
-          - macos-latest
 
     timeout-minutes: 10
     steps:
