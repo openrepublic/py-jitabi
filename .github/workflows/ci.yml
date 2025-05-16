@@ -1,0 +1,36 @@
+name: CI
+
+on: [push]
+
+jobs:
+  auto-tests:
+    name: Pytest Tests
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      matrix:
+        platform:
+          - ubuntu-24.04
+
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v5
+
+      - uses: actions/cache@v3
+        name: Cache venv
+        with:
+          path: ./.venv
+          key: venv-${{ hashFiles('uv.lock') }}
+
+      - name: Setup env
+        run: uv venv .venv --python=3.10
+
+      - name: Install
+        run: uv sync
+
+      - name: Run tests
+        run: uv run pytest
