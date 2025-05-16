@@ -8,8 +8,7 @@ unpack_{{ call.type_name }}(
     {{ a }},
     {% endfor %}
     buf_len - __total,
-    &__consumed,
-    __depth + 1
+    &__consumed
 );
 {% endcall %}
 {%- endmacro -%}
@@ -29,8 +28,8 @@ unpack_{{ call.type_name }}(
     uint8_t __flag_{{ f.name }} = b[__total++];
 
     #ifdef __JITABI_DEBUG
-        JITABI_DEBUG_PRINT(
-            "optional: %u delta: %lu\n",
+        JITABI_LOG_DEBUG(
+            "optional: %u delta: %lu",
             __flag_{{ f.name }},
             __total - __start_total
         );
@@ -65,7 +64,7 @@ unpack_{{ call.type_name }}(
     {{ f.name }} = PyList_New(__len_{{ f.name }});
     if (!{{ f.name }}) goto error;
 
-    JITABI_DEBUG_PRINT("array of size: %lu\n", __len_{{ f.name }});
+    JITABI_LOG_DEBUG("array of size: %lu", __len_{{ f.name }});
 
     for (size_t _i = 0; _i < __len_{{ f.name }}; ++_i) {
         PyObject *_item = {{ unpack_fn(f.call, indent_count=8) }}
@@ -79,8 +78,8 @@ unpack_{{ call.type_name }}(
     {%- endif %}
 
     #ifdef __JITABI_DEBUG
-        JITABI_DEBUG_PRINT(
-            "{{ f.name }} start: %lu, size: %lu\n",
+        JITABI_LOG_DEBUG(
+            "{{ f.name }} start: %lu, size: %lu",
             __start_total,
             __total - __start_total
         );
@@ -88,7 +87,7 @@ unpack_{{ call.type_name }}(
 {%- endmacro -%}
 
 static inline PyObject *
-unpack_{{ fn_name }}(const char *b, size_t buf_len, size_t *c, size_t __depth)
+unpack_{{ fn_name }}(const char *b, size_t buf_len, size_t *c)
 {
 {% if fields|length > 0 %}
     size_t __consumed = 0;
@@ -97,13 +96,17 @@ unpack_{{ fn_name }}(const char *b, size_t buf_len, size_t *c, size_t __depth)
     size_t __start_total = 0;
     #endif
 
-    JITABI_DEBUG_PRINT("struct {{ fn_name }}:\n");
+    JITABI_LOG_DEBUG(
+        {%- if base -%}
+        "struct {{ fn_name }} with base {{ base }}"
+        {%- else -%}
+        "struct {{ fn_name }}:"
+        {%- endif -%}
+    );
 
-    __depth++;
 {% if base %}
-    JITABI_DEBUG_PRINT("base: \n");
     // start from base dict
-    PyObject *__dict = unpack_{{ base }}(b, buf_len, &__consumed, __depth);
+    PyObject *__dict = unpack_{{ base }}(b, buf_len, &__consumed);
     if (!__dict) goto error;
     __total += __consumed;
 
@@ -129,7 +132,7 @@ unpack_{{ fn_name }}(const char *b, size_t buf_len, size_t *c, size_t __depth)
     if (PyDict_SetItemString(__dict, "{{ f.name }}", {{ f.name }}) < 0) goto error;
 {%- endfor %}
 
-    JITABI_DEBUG_PRINT("fields set on dict\n");
+    JITABI_LOG_DEBUG("fields set on dict");
 
     // drop local refs now owned by dict
 {%- for f in fields %}

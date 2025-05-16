@@ -8,8 +8,8 @@
         {%- if field.call.modifier.name != "NONE" %} {{ field.call.modifier }}
         {%- endif %} "{{ field.call.type_name }}" --------
 
-    JITABI_DEBUG_PRINT(
-        "%s: %s%s\n",
+    JITABI_LOG_DEBUG(
+        "%s: %s%s",
         "{{ field.name }}",
         "{{ field.call.type_name }}",
         {%- if field.call.modifier.name == "OPTIONAL" %}

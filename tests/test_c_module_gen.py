@@ -1,9 +1,8 @@
-import json as stdjson
 from pathlib import Path
 
 from jitabi import JITContext
 from jitabi.json import ABI
-from jitabi.utils import JSONHexEncoder
+
 
 ABI_DIR = Path(__file__).with_name('abis')
 
@@ -17,7 +16,7 @@ def test_std_abi():
     standard = jit.module_for_abi(
         'standard',
         abi,
-        debug=True,
+        # debug=True,
         use_cache=False
     )
 
@@ -25,11 +24,7 @@ def test_std_abi():
 
     result = standard.unpack_result(raw_result)
 
-    print(stdjson.dumps(result, cls=JSONHexEncoder, indent=4))
-
     re_packed_result = standard.pack_result(result)
-
-    print(re_packed_result)
 
     assert raw_result == re_packed_result
 
@@ -44,4 +39,10 @@ def test_std_abi():
 
     result = standard.unpack_result(raw_result)
 
-    print(stdjson.dumps(result, cls=JSONHexEncoder, indent=4))
+    re_packed_result = standard.pack_result(result)
+
+    assert raw_result == re_packed_result
+
+    re_unpacked_result = standard.unpack_result(re_packed_result)
+
+    assert result == re_unpacked_result

@@ -1,5 +1,5 @@
 static inline ssize_t
-pack_{{ enum_name }}(PyObject *__obj, char *__out, size_t __out_len, size_t __depth)
+pack_{{ enum_name }}(PyObject *__obj, char *__out, size_t __out_len)
 {
     // must be a dict with "type" key
     if (!PyDict_Check(__obj)) {
@@ -22,7 +22,7 @@ pack_{{ enum_name }}(PyObject *__obj, char *__out, size_t __out_len, size_t __de
 {%- for v in variants %}
     if (strcmp(__type_str, "{{ v.name }}") == 0) {
         __out[0] = (char){{ loop.index0 }};  // encode as ULEB128 assuming index < 0x80
-        __inner = pack_{{ v.name }}(__obj, __out + 1, __out_len - 1, __depth);
+        __inner = pack_{{ v.name }}(__obj, __out + 1, __out_len - 1);
         if (__inner < 0) return -1;
         return 1 + __inner;
     }

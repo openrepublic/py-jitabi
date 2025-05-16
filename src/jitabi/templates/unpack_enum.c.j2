@@ -1,5 +1,5 @@
 static inline PyObject *
-unpack_{{ enum_name }}(const char *b, size_t buf_len, size_t *c, size_t depth)
+unpack_{{ enum_name }}(const char *b, size_t buf_len, size_t *c)
 {
     // decode variant index (ULEB128)
     size_t __local = 0;
@@ -16,7 +16,7 @@ unpack_{{ enum_name }}(const char *b, size_t buf_len, size_t *c, size_t depth)
     switch (idx) {
     {%- for v in variants %}
         case {{ loop.index0 }}: {
-            __ret = unpack_{{ v.name }}(b + __local, buf_len, &__inner, depth);
+            __ret = unpack_{{ v.name }}(b + __local, buf_len, &__inner);
             {% if not v.is_std -%}
             PyObject *type_str = PyUnicode_FromString("{{ v.name }}");
             if (PyDict_SetItemString(__ret, "type", type_str) < 0) goto error;

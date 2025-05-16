@@ -27,12 +27,20 @@ hitting the filesystem more than necessary, but it always persists updates to
 disk so that subsequent interpreter sessions can reuse them.
 
 '''
+from __future__ import annotations
+
 import logging
 import sysconfig
-import importlib
 
 from types import ModuleType
+from ctypes import (
+    CDLL,
+    PyDLL,
+    c_void_p,
+    py_object
+)
 from pathlib import Path
+from dataclasses import dataclass
 
 
 logger = logging.getLogger(__name__)
@@ -50,30 +58,44 @@ EXT_SUFFIX = sysconfig.get_config_var('EXT_SUFFIX')
 CacheKey = tuple[str, str]
 
 
-def import_module(mod_name: str, mod_path: Path) -> ModuleType:
-    '''
-    Dynamically import a compiled extension located at *mod_path*.
+libdl = CDLL('libdl.so')
+libdl.dlclose.argtypes = [c_void_p]
 
-    '''
+def import_module(
+    mod_name: str,
+    mod_path: Path,
+) -> tuple[PyDLL, ModuleType]:
+    # https://stackoverflow.com/questions/8295555/how-to-reload-a-python3-c-extension-module
     logger.debug(f'Importing module {mod_name} from {mod_path}')
 
-    spec = importlib.util.spec_from_file_location(mod_name, str(mod_path))
-    if (
-        spec is None
-        or
-        spec.loader is None
-    ):
-        raise ImportError(f'Could not create spec for {mod_name!r} at {mod_path}')
+    shared_lib = PyDLL(mod_path)
 
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    init_fn = getattr(shared_lib, f'PyInit_{mod_name}')
+    init_fn.argypes = []
+    init_fn.restype = py_object
+
+    return shared_lib, init_fn()
+
+
+@dataclass
+class CacheEntry:
+    source: str | None
+    shared_lib: PyDLL | None
+    module: ModuleType | None
+
+    @staticmethod
+    def default() -> CacheEntry:
+        return CacheEntry(
+            source=None,
+            shared_lib=None,
+            module=None
+        )
 
 
 class Cache:
 
     # In‑memory representation: [source (str|None), module (ModuleType|None)]
-    _cache: dict[CacheKey, list[str | ModuleType]]
+    _cache: dict[CacheKey, CacheEntry]
 
     def __init__(
         self,
@@ -104,6 +126,7 @@ class Cache:
 
                 key: CacheKey = (mod_name, src_hash_dir.name)
                 source: str | None = None
+                shared_lib: PyDLL | None = None
                 module: ModuleType | None = None
 
                 # load C source if present
@@ -116,12 +139,16 @@ class Cache:
                 mod_path = src_hash_dir / f'{mod_name}{EXT_SUFFIX}'
                 if mod_path.is_file():
                     try:
-                        module = import_module(mod_name, mod_path)
+                        shared_lib, module = import_module(mod_name, mod_path)
                         logger.debug(f'Loaded compiled module for {mod_name} (hash {key[1]}')
                     except Exception:  # pragma: no cover – ignore broken cache entries
                         logger.exception(f'Failed to import cached module {mod_path}')
 
-                self._cache[key] = [source, module]
+                self._cache[key] = CacheEntry(
+                    source=source,
+                    shared_lib=shared_lib,
+                    module=module
+                )
 
     def get_module_path(self, key: CacheKey) -> Path:
         '''
@@ -135,16 +162,16 @@ class Cache:
         Return cached C source for *key* or *None* if missing.
 
         '''
-        if key in self._cache and self._cache[key][0]:
+        if key in self._cache and self._cache[key].source:
             logger.debug('Returning in‑memory source for %s', key)
-            return self._cache[key][0]
+            return self._cache[key].source
 
         mod_name, _ = key
         src_path = self.get_module_path(key) / f'{mod_name}.c'
         if src_path.is_file():
             logger.debug(f'Reading source for {key} from {src_path}', key, src_path)
             source = src_path.read_text()
-            self._cache.setdefault(key, [None, None])[0] = source
+            self._cache.setdefault(key, CacheEntry.default()).source = source
             return source
 
         logger.debug(f'Source for {key} not found')
@@ -156,7 +183,7 @@ class Cache:
 
         '''
         logger.debug(f'Storing source for {key}')
-        self._cache.setdefault(key, [None, None])[0] = source
+        self._cache.setdefault(key, CacheEntry.default()).source = source
 
         src_dir = self.get_module_path(key)
         src_dir.mkdir(parents=True, exist_ok=True)
@@ -168,9 +195,9 @@ class Cache:
 
         '''
         if not reload:
-            if key in self._cache and self._cache[key][1]:
+            if key in self._cache and self._cache[key].module:
                 logger.debug(f'Returning in‑memory module for {key}')
-                return self._cache[key][1]  # type: ignore[index]
+                return self._cache[key].module
 
         mod_name, _ = key
         mod_path = self.get_module_path(key) / f'{mod_name}{EXT_SUFFIX}'
@@ -179,10 +206,26 @@ class Cache:
             return None
 
         try:
-            module = import_module(mod_name, mod_path)
+            if key in self._cache and self._cache[key].module:
+                # if this module was previously imported we need to delete all
+                # refs to it in order to actually get updated behaivour
+                entry = self._cache[key]
+                # make local scope owner of shared_lib & module objects
+                mod = entry.module
+                shared_lib = entry.shared_lib
+                entry.module = None
+                entry.shared_lib = None
+                # ensure cleanup
+                del mod
+                libdl.dlclose(shared_lib._handle)
+                del shared_lib
+
+            shared_lib, module = import_module(mod_name, mod_path)
+
         except Exception:
             logger.exception(f'Failed to import module {mod_path}')
             return None
 
-        self._cache.setdefault(key, [None, None])[1] = module
+        self._cache.setdefault(key, CacheEntry.default()).shared_lib = shared_lib
+        self._cache.get(key).module = module
         return module

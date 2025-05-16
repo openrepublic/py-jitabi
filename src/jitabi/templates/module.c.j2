@@ -21,9 +21,6 @@
 // logging
 
 // Static variables
-static PyObject *sys_stdout = NULL;
-static PyObject *sys_stdout_flush = NULL;
-
 static PyObject *logger_debug = NULL;
 static PyObject *logger_info = NULL;
 static PyObject *logger_warning = NULL;
@@ -31,29 +28,6 @@ static PyObject *logger_error = NULL;
 
 // Called during PyMODINIT_FUNC (i.e., module init)
 static int init_logging_handles(void) {
-    // stdout and flush fn
-    PyObject *sys = PyImport_ImportModule("sys");
-    if (!sys) return -1;
-
-    sys_stdout = PyObject_GetAttrString(sys, "stdout");
-    if (!sys_stdout) {
-        Py_DECREF(sys);
-        return -1;
-    }
-
-    sys_stdout_flush = PyObject_GetAttrString(sys_stdout, "flush");
-    if (!sys_stdout_flush || !PyCallable_Check(sys_stdout_flush)) {
-        Py_DECREF(sys_stdout);
-        sys_stdout = NULL;
-        Py_XDECREF(sys_stdout_flush);
-        sys_stdout_flush = NULL;
-        Py_DECREF(sys);
-        return -1;
-    }
-
-    Py_DECREF(sys);
-
-    // logging handlers
     PyObject *logging = PyImport_ImportModule("logging");
     if (!logging) return -1;
 
@@ -93,13 +67,6 @@ static int init_logging_handles(void) {
     return 0;
 }
 
-static void try_flush_stdout(void) {
-    if (sys_stdout_flush) {
-        PyObject *res = PyObject_CallObject(sys_stdout_flush, NULL);
-        Py_XDECREF(res);
-    }
-}
-
 static void logger_logf(PyObject *fn, const char *fmt, ...)
 {
     if (!fn) return;
@@ -118,19 +85,12 @@ static void logger_logf(PyObject *fn, const char *fmt, ...)
     Py_DECREF(msg);
 }
 
-#define JITABI_DEBUG_PRINT(...)                      \
-    for (size_t __i = 0; __i < __depth; __i++)       \
-        PySys_WriteStdout("    ");                   \
-    PySys_WriteStdout(__VA_ARGS__);                  \
-    try_flush_stdout()
-
 #define JITABI_LOG_DEBUG(...) logger_logf(logger_debug,   __VA_ARGS__)
 #define JITABI_LOG_INFO(...)  logger_logf(logger_info,    __VA_ARGS__)
 #define JITABI_LOG_WARN(...)  logger_logf(logger_warning, __VA_ARGS__)
 #define JITABI_LOG_ERROR(...) logger_logf(logger_error,   __VA_ARGS__)
 
 #else
-#define JITABI_DEBUG_PRINT(...) ((void)0)
 
 #define JITABI_LOG_DEBUG(...) ((void)0)
 #define JITABI_LOG_INFO(...)  ((void)0)
@@ -269,12 +229,12 @@ PyObject *uint128_to_pylong(unsigned __int128 v)
 // bool
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_bool (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_bool (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 1;  return PyBool_FromLong(b[0] != 0); }
 
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_bool(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_bool(PyObject *obj, char *out, size_t out_len)
 {
     int res = PyObject_IsTrue(obj);
     if (res < 0) return -1;
@@ -285,11 +245,11 @@ ssize_t pack_bool(PyObject *obj, char *out, size_t out_len, size_t depth)
 // uint8
 
 static inline __attribute__((always_inline, hot, pure)) PyObject *
-unpack_uint8 (const char *b, size_t buf_len, size_t *c, size_t depth)
+unpack_uint8 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 1;  return PyLong_FromUnsignedLong((unsigned char)b[0]); }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_uint8(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_uint8(PyObject *obj, char *out, size_t out_len)
 {
     unsigned long val = PyLong_AsUnsignedLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -304,11 +264,11 @@ ssize_t pack_uint8(PyObject *obj, char *out, size_t out_len, size_t depth)
 // uint16
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_uint16 (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_uint16 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 2;  return PyLong_FromUnsignedLong(read_le16(b)); }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_uint16(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_uint16(PyObject *obj, char *out, size_t out_len)
 {
     unsigned long val = PyLong_AsUnsignedLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -326,11 +286,11 @@ ssize_t pack_uint16(PyObject *obj, char *out, size_t out_len, size_t depth)
 // uint32
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_uint32 (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_uint32 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 4;  return PyLong_FromUnsignedLong(read_le32(b)); }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_uint32(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_uint32(PyObject *obj, char *out, size_t out_len)
 {
     unsigned long val = PyLong_AsUnsignedLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -352,11 +312,11 @@ ssize_t pack_uint32(PyObject *obj, char *out, size_t out_len, size_t depth)
 // uint64
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_uint64 (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_uint64 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 8;  return PyLong_FromUnsignedLongLong(read_le64(b)); }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_uint64(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_uint64(PyObject *obj, char *out, size_t out_len)
 {
     unsigned long long val = PyLong_AsUnsignedLongLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -376,7 +336,7 @@ ssize_t pack_uint64(PyObject *obj, char *out, size_t out_len, size_t depth)
 // uint128
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_uint128 (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_uint128 (const char *b, size_t buf_len, size_t *c)
 {
     if (c) *c = 16;
     unsigned __int128 v =
@@ -385,7 +345,7 @@ PyObject *unpack_uint128 (const char *b, size_t buf_len, size_t *c, size_t depth
 }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_uint128(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_uint128(PyObject *obj, char *out, size_t out_len)
 {
     if (!PyLong_Check(obj)) {
         PyErr_SetString(PyExc_TypeError, "expected int for uint128");
@@ -416,11 +376,11 @@ ssize_t pack_uint128(PyObject *obj, char *out, size_t out_len, size_t depth)
 // int8
 
 static inline __attribute__((always_inline, hot, pure)) PyObject *
-unpack_int8 (const char *b, size_t buf_len, size_t *c, size_t depth)
+unpack_int8 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 1;  return PyLong_FromLong((signed char)b[0]); }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_int8(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_int8(PyObject *obj, char *out, size_t out_len)
 {
     long val = PyLong_AsLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -435,11 +395,11 @@ ssize_t pack_int8(PyObject *obj, char *out, size_t out_len, size_t depth)
 // int16
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_int16 (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_int16 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 2;  return PyLong_FromLong((int16_t)read_le16(b)); }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_int16(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_int16(PyObject *obj, char *out, size_t out_len)
 {
     long val = PyLong_AsLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -457,11 +417,11 @@ ssize_t pack_int16(PyObject *obj, char *out, size_t out_len, size_t depth)
 // int32
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_int32 (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_int32 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 4;  return PyLong_FromLong((int32_t)read_le32(b)); }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_int32(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_int32(PyObject *obj, char *out, size_t out_len)
 {
     long val = PyLong_AsLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -482,11 +442,11 @@ ssize_t pack_int32(PyObject *obj, char *out, size_t out_len, size_t depth)
 // int64
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_int64 (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_int64 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 8;  return PyLong_FromLongLong((int64_t)read_le64(b)); }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_int64(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_int64(PyObject *obj, char *out, size_t out_len)
 {
     long long val = PyLong_AsLongLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -506,7 +466,7 @@ ssize_t pack_int64(PyObject *obj, char *out, size_t out_len, size_t depth)
 // int128
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_int128 (const char *b, size_t buf_len, size_t *c, size_t depth){
+PyObject *unpack_int128 (const char *b, size_t buf_len, size_t *c){
     if (c) *c = 16;
     __int128 v; /* signed */
     memcpy(&v, b, 16); /* avoids the &-on-temporary */
@@ -514,7 +474,7 @@ PyObject *unpack_int128 (const char *b, size_t buf_len, size_t *c, size_t depth)
 }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_int128(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_int128(PyObject *obj, char *out, size_t out_len)
 {
     if (!PyLong_Check(obj)) {
         PyErr_SetString(PyExc_TypeError, "expected int for int128");
@@ -551,14 +511,14 @@ ssize_t pack_int128(PyObject *obj, char *out, size_t out_len, size_t depth)
 // varuint32
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_varuint32 (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_varuint32 (const char *b, size_t buf_len, size_t *c)
 {
     unsigned long long v = decode_varuint32(b, c);
     return PyLong_FromUnsignedLongLong(v);
 }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_varuint32(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_varuint32(PyObject *obj, char *out, size_t out_len)
 {
     unsigned long long val = PyLong_AsUnsignedLongLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -569,14 +529,14 @@ ssize_t pack_varuint32(PyObject *obj, char *out, size_t out_len, size_t depth)
 // varint32
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_varint32 (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_varint32 (const char *b, size_t buf_len, size_t *c)
 {
     long long v = decode_varint32(b, c);
     return PyLong_FromLongLong(v);
 }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_varint32(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_varint32(PyObject *obj, char *out, size_t out_len)
 {
     long long val = PyLong_AsLongLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -587,7 +547,7 @@ ssize_t pack_varint32(PyObject *obj, char *out, size_t out_len, size_t depth)
 // float32
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_float32 (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_float32 (const char *b, size_t buf_len, size_t *c)
 {
     if (c) *c = 4;
     float f;
@@ -596,7 +556,7 @@ PyObject *unpack_float32 (const char *b, size_t buf_len, size_t *c, size_t depth
 }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_float32(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_float32(PyObject *obj, char *out, size_t out_len)
 {
     float f = (float)PyFloat_AsDouble(obj);
     if (PyErr_Occurred()) return -1;
@@ -607,7 +567,7 @@ ssize_t pack_float32(PyObject *obj, char *out, size_t out_len, size_t depth)
 // float64
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_float64 (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_float64 (const char *b, size_t buf_len, size_t *c)
 {
     if (c) *c = 8;
     double d;
@@ -616,7 +576,7 @@ PyObject *unpack_float64 (const char *b, size_t buf_len, size_t *c, size_t depth
 }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_float64(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_float64(PyObject *obj, char *out, size_t out_len)
 {
     double d = PyFloat_AsDouble(obj);
     if (PyErr_Occurred()) return -1;
@@ -627,14 +587,14 @@ ssize_t pack_float64(PyObject *obj, char *out, size_t out_len, size_t depth)
 // raw
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_raw (const char *b, size_t len, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_raw (const char *b, size_t len, size_t buf_len, size_t *c)
 {
     if (c) *c = len;
     return PyBytes_FromStringAndSize(b, len);
 }
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_raw(PyObject *obj, size_t len, char *out, size_t out_len, size_t depth)
+ssize_t pack_raw(PyObject *obj, size_t len, char *out, size_t out_len)
 {
     if (!PyBytes_Check(obj)) {
         PyErr_SetString(PyExc_TypeError, "expected a bytes object");
@@ -658,13 +618,13 @@ ssize_t pack_raw(PyObject *obj, size_t len, char *out, size_t out_len, size_t de
 // bytes
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_bytes (const char *b, size_t buf_len, size_t *c, size_t __depth)
+PyObject *unpack_bytes (const char *b, size_t buf_len, size_t *c)
 {
     size_t len_consumed = 0;
     unsigned long long l = decode_varuint32(b, &len_consumed);
 
-    JITABI_LOG_DEBUG("leb consumed: %lu\n", len_consumed);
-    JITABI_LOG_DEBUG("about to unpack bytes of size: %llu\n", l);
+    JITABI_LOG_DEBUG("leb consumed: %lu", len_consumed);
+    JITABI_LOG_DEBUG("about to unpack bytes of size: %llu", l);
 
     if (l > PY_SSIZE_T_MAX ||
         l > (unsigned long long)(buf_len - len_consumed)) {
@@ -678,7 +638,7 @@ PyObject *unpack_bytes (const char *b, size_t buf_len, size_t *c, size_t __depth
 
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_bytes(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_bytes(PyObject *obj, char *out, size_t out_len)
 {
     if (!PyBytes_Check(obj)) {
         PyErr_SetString(PyExc_TypeError, "expected a bytes object");
@@ -707,7 +667,7 @@ ssize_t pack_bytes(PyObject *obj, char *out, size_t out_len, size_t depth)
 // string
 
 static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_string (const char *b, size_t buf_len, size_t *c, size_t depth)
+PyObject *unpack_string (const char *b, size_t buf_len, size_t *c)
 {
     size_t len_consumed = 0;
     unsigned long long l = decode_varuint32(b, &len_consumed);
@@ -724,7 +684,7 @@ PyObject *unpack_string (const char *b, size_t buf_len, size_t *c, size_t depth)
 
 
 static inline __attribute__((always_inline, hot, pure))
-ssize_t pack_string(PyObject *obj, char *out, size_t out_len, size_t depth)
+ssize_t pack_string(PyObject *obj, char *out, size_t out_len)
 {
     if (!PyUnicode_Check(obj)) {
         PyErr_SetString(PyExc_TypeError, "expected a string");
@@ -753,12 +713,12 @@ ssize_t pack_string(PyObject *obj, char *out, size_t out_len, size_t depth)
 
 // forward declarations
 {% for f in functions %}
-static inline PyObject *unpack_{{ f.name }}(const char *b, size_t buf_len, size_t *c, size_t depth);
-static inline ssize_t   pack_{{ f.name }}(PyObject *obj, char *out, size_t out_len, size_t depth);
+static inline PyObject *unpack_{{ f.name }}(const char *b, size_t buf_len, size_t *c);
+static inline ssize_t   pack_{{ f.name }}(PyObject *obj, char *out, size_t out_len);
 {% endfor -%}
 {% for a in aliases %}
-static inline PyObject *unpack_{{ a.alias }}(const char *b, size_t buf_len, size_t *c, size_t depth);
-static inline ssize_t   pack_{{ a.alias }}(PyObject *obj, char *out, size_t out_len, size_t depth);
+static inline PyObject *unpack_{{ a.alias }}(const char *b, size_t buf_len, size_t *c);
+static inline ssize_t   pack_{{ a.alias }}(PyObject *obj, char *out, size_t out_len);
 {% endfor -%}
 
 {% for f in functions %}
@@ -785,7 +745,7 @@ static inline ssize_t   pack_{{ a.alias }}(PyObject *obj, char *out, size_t out_
         Py_ssize_t len;                                                  \
         char *buf;                                                       \
         PyBytes_AsStringAndSize(arg, &buf, &len);                        \
-        return cfunc(buf, (size_t)len, NULL, 0);                         \
+        return cfunc(buf, (size_t)len, NULL);                         \
     }
 
 
@@ -799,7 +759,7 @@ static inline ssize_t   pack_{{ a.alias }}(PyObject *obj, char *out, size_t out_
                                                                            \
         for (int attempts = 0; attempts < 5; ++attempts) {                 \
             char *buf = PyBytes_AS_STRING(bytes);                          \
-            ssize_t written = cfunc(arg, buf, (size_t)cap, 0);             \
+            ssize_t written = cfunc(arg, buf, (size_t)cap);             \
                                                                            \
             /* success: shrink to actual size and return */                \
             if (written >= 0) {                                            \
@@ -863,10 +823,10 @@ DEF_PACK_WRAPPER   (py_pack_{{ a.alias }}, pack_{{ a.alias }}, 5 * 1024)
 // type name dispatch
 
 // unpack
-typedef PyObject *(*unpack_fn_t)(const char *, size_t, size_t *, size_t);
+typedef PyObject *(*unpack_fn_t)(const char *, size_t, size_t *);
 
 // pack
-typedef ssize_t (*pack_fn_t)(PyObject *, char *, size_t, size_t);
+typedef ssize_t (*pack_fn_t)(PyObject *, char *, size_t);
 
 struct dispatch_entry {
     const char  *name;
@@ -956,7 +916,7 @@ py_unpack(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
     // no modifiers, just delegate
     if (!is_array) {
         size_t consumed = 0;
-        return fn(buf, (size_t)buf_len, &consumed, 0);
+        return fn(buf, (size_t)buf_len, &consumed);
     }
 
     // array path
@@ -975,7 +935,7 @@ py_unpack(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
 
     for (uint64_t i = 0; i < arr_len; i++) {
         size_t consumed = 0;
-        PyObject *item = fn(buf + offset, buf_len - offset, &consumed, 0);
+        PyObject *item = fn(buf + offset, buf_len - offset, &consumed);
         offset += consumed;
         if (!item) {  // fn should of already set an exception
             Py_DECREF(list);
