@@ -57,8 +57,12 @@ EXT_SUFFIX = sysconfig.get_config_var('EXT_SUFFIX')
 # (module_name, source_hash)
 CacheKey = tuple[str, str]
 
+try:
+    libdl = CDLL('libdl.so')
 
-libdl = CDLL('libdl.so')
+except OSError:
+    libdl = CDLL('libdl.so.2')
+
 libdl.dlclose.argtypes = [c_void_p]
 
 def import_module(
