@@ -1,0 +1,103 @@
+{%- import "macros.c.j2" as m -%}
+
+{%- macro pack_fn(call, indent_count=8) -%}
+pack_{{ call.type_name }}(
+{%- call m.indent(indent_count) %}
+    __field,
+    {%- for a in call.args %}
+    {{ a }},
+    {% endfor %}
+    __out + __offset,
+    __out_len - __offset,
+    __depth + 1
+);
+{% endcall %}
+{%- endmacro -%}
+
+{%- macro pack_field(f) -%}
+    {
+        {%- call m.indent(4) %}
+        {{- m.debug_field(f) -}}
+        {% endcall %}
+
+        __field = PyDict_GetItemString(__obj, "{{ f.name }}");
+        if (!__field) {
+            PyErr_SetString(PyExc_KeyError, "missing field '{{ f.name }}'");
+            return -1;
+        }
+    {%- if f.call.modifier.name == "NONE" %}
+        __consumed = {{ pack_fn(f.call) }}
+        if (__consumed < 0) return -1;
+        __offset += __consumed;
+
+    {%- elif f.call.modifier.name == "OPTIONAL" %}
+        __out[__offset++] = (__field != Py_None);
+        if (__field != Py_None) {
+            __consumed = {{ pack_fn(f.call) }}
+            if (__consumed < 0) return -1;
+            __offset += __consumed;
+        }
+
+    {%- elif f.call.modifier.name == "EXTENSION" %}
+        if (__field != Py_None) {
+            __consumed = {{ pack_fn(f.call) }}
+            if (__consumed < 0) return -1;
+            __offset += __consumed;
+        }
+
+    {%- elif f.call.modifier.name == "ARRAY" %}
+        if (!PyList_Check(__field)) {
+            PyErr_SetString(PyExc_TypeError, "expected list for field '{{ f.name }}'");
+            return -1;
+        }
+
+        Py_ssize_t __len = PyList_Size(__field);
+        char __len_buf[10];
+        ssize_t __varint_len = encode_varuint32((unsigned long long)__len, (char *)&__len_buf);
+        if (__varint_len < 0 || (size_t)(__offset + __varint_len) > __out_len) return -1;
+        memcpy(__out + __offset, __len_buf, (size_t)__varint_len);
+        __offset += __varint_len;
+
+        PyObject *__list = __field;
+        for (Py_ssize_t i = 0; i < __len; i++) {
+            __field = PyList_GetItem(__list, i);
+            __consumed = {{ pack_fn(f.call) }}
+            if (__consumed < 0) return -1;
+            __offset += __consumed;
+        }
+
+    {%- else %}
+        #error "Unknown modifier in pack_struct"
+    {% endif %}
+    }
+{%- endmacro -%}
+
+static inline ssize_t
+pack_{{ fn_name }}(PyObject *__obj, char *__out, size_t __out_len, size_t __depth)
+{
+{% if fields|length > 0 %}
+    ssize_t __offset = 0;
+    ssize_t __consumed = 0;
+
+    JITABI_DEBUG_PRINT("struct {{ fn_name }} pack:\n");
+
+    __depth++;
+{% if base %}
+    // pack base first
+    __consumed = pack_{{ base }}(__obj, __out, __out_len, __depth);
+    if (__consumed < 0) return -1;
+    __offset += __consumed;
+
+{%- endif %}
+
+    PyObject *__field = NULL;
+
+{% for f in fields %}
+    {{ pack_field(f) -}}
+{% endfor %}
+
+    return __offset;
+{%- else %}
+    return 0;
+{% endif %}
+}

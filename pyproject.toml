@@ -1,0 +1,27 @@
+[project]
+name = "py-jitabi"
+version = "0.1.0"
+description = "Create JIT compiled CPython modules from antelope protocol ABIs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "jinja2>=3.1.6",
+]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/jitabi"]
+
+[tool.hatch.build.targets.wheel]
+include = ["src/jitabi"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/jitabi" = "jitabi"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+]

@@ -1,0 +1,33 @@
+static inline ssize_t
+pack_{{ enum_name }}(PyObject *__obj, char *__out, size_t __out_len, size_t __depth)
+{
+    // must be a dict with "type" key
+    if (!PyDict_Check(__obj)) {
+        PyErr_SetString(PyExc_TypeError, "expected dict for enum {{ enum_name }}");
+        return -1;
+    }
+
+    PyObject *__type_obj = PyDict_GetItemString(__obj, "type");
+    if (!__type_obj || !PyUnicode_Check(__type_obj)) {
+        PyErr_SetString(PyExc_TypeError, "enum {{ enum_name }} must have a string \"type\" field");
+        return -1;
+    }
+
+    const char *__type_str = PyUnicode_AsUTF8(__type_obj);
+    if (!__type_str) return -1;
+
+    ssize_t __inner = 0;
+
+    // variant dispatch
+{%- for v in variants %}
+    if (strcmp(__type_str, "{{ v.name }}") == 0) {
+        __out[0] = (char){{ loop.index0 }};  // encode as ULEB128 assuming index < 0x80
+        __inner = pack_{{ v.name }}(__obj, __out + 1, __out_len - 1, __depth);
+        if (__inner < 0) return -1;
+        return 1 + __inner;
+    }
+{%- endfor %}
+
+    PyErr_SetString(PyExc_ValueError, "unknown enum variant for {{ enum_name }}");
+    return -1;
+}

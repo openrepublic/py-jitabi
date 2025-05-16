@@ -1,0 +1,150 @@
+{%- import "macros.c.j2" as m -%}
+
+{%- macro unpack_fn(call, indent_count=4) -%}
+unpack_{{ call.type_name }}(
+{%- call m.indent(indent_count) %}
+    b + __total,
+    {%- for a in call.args %}
+    {{ a }},
+    {% endfor %}
+    buf_len - __total,
+    &__consumed,
+    __depth + 1
+);
+{% endcall %}
+{%- endmacro -%}
+
+{%- macro unpack_field(f) -%}
+    {{ m.debug_field(f) }}
+
+    {% if f.call.modifier.name == "NONE" -%}
+
+    {{ f.name }} = {{ unpack_fn(f.call) }}
+    if (!{{ f.name }}) goto error;
+    __total += __consumed;
+
+    {%- elif f.call.modifier.name == "OPTIONAL" -%}
+
+    if (__total >= buf_len) goto error;
+    uint8_t __flag_{{ f.name }} = b[__total++];
+
+    #ifdef __JITABI_DEBUG
+        JITABI_DEBUG_PRINT(
+            "optional: %u delta: %lu\n",
+            __flag_{{ f.name }},
+            __total - __start_total
+        );
+        __start_total = __total;
+    #endif
+
+    if (__flag_{{ f.name }}) {
+        {{ f.name }} = {{ unpack_fn(f.call, indent_count=8) }}
+        if (!{{ f.name }}) goto error;
+        __total += __consumed;
+    } else {
+        Py_INCREF(Py_None);
+        {{ f.name }} = Py_None;
+    }
+
+    {%- elif f.call.modifier.name == "EXTENSION" -%}
+
+    if (__total < buf_len) {
+        {{ f.name }} = {{ unpack_fn(f.call, indent_count=8) }}
+        if (!{{ f.name }}) goto error;
+        __total += __consumed;
+    } else {
+        Py_INCREF(Py_None);
+        {{ f.name }} = Py_None;
+    }
+
+    {%- elif f.call.modifier.name == "ARRAY" -%}
+
+    size_t __len_{{ f.name }} = decode_varuint32(b + __total, &__consumed);
+    __total += __consumed;
+
+    {{ f.name }} = PyList_New(__len_{{ f.name }});
+    if (!{{ f.name }}) goto error;
+
+    JITABI_DEBUG_PRINT("array of size: %lu\n", __len_{{ f.name }});
+
+    for (size_t _i = 0; _i < __len_{{ f.name }}; ++_i) {
+        PyObject *_item = {{ unpack_fn(f.call, indent_count=8) }}
+        if (!_item) { Py_DECREF({{ f.name }}); goto error; }
+        __total += __consumed;
+        PyList_SetItem({{ f.name }}, _i, _item);
+    }
+
+    {%- else %}
+        /* unreachable */
+    {%- endif %}
+
+    #ifdef __JITABI_DEBUG
+        JITABI_DEBUG_PRINT(
+            "{{ f.name }} start: %lu, size: %lu\n",
+            __start_total,
+            __total - __start_total
+        );
+    #endif
+{%- endmacro -%}
+
+static inline PyObject *
+unpack_{{ fn_name }}(const char *b, size_t buf_len, size_t *c, size_t __depth)
+{
+{% if fields|length > 0 %}
+    size_t __consumed = 0;
+    size_t __total = 0;
+    #ifdef __JITABI_DEBUG
+    size_t __start_total = 0;
+    #endif
+
+    JITABI_DEBUG_PRINT("struct {{ fn_name }}:\n");
+
+    __depth++;
+{% if base %}
+    JITABI_DEBUG_PRINT("base: \n");
+    // start from base dict
+    PyObject *__dict = unpack_{{ base }}(b, buf_len, &__consumed, __depth);
+    if (!__dict) goto error;
+    __total += __consumed;
+
+{%- else %}
+    // build python dict
+    PyObject *__dict = PyDict_New();
+    if (!__dict) goto error;
+
+{%- endif %}
+{% for f in fields %}
+    PyObject *{{ f.name }} = NULL;
+{%- endfor %}
+{% for f in fields -%}
+    {{ unpack_field(f) }}
+{% endfor %}
+    // -------- end of fields unpacking ---------
+
+    // set total bytes consumed
+    if (c) *c = __total;
+
+    // set items
+{%- for f in fields %}
+    if (PyDict_SetItemString(__dict, "{{ f.name }}", {{ f.name }}) < 0) goto error;
+{%- endfor %}
+
+    JITABI_DEBUG_PRINT("fields set on dict\n");
+
+    // drop local refs now owned by dict
+{%- for f in fields %}
+    Py_DECREF({{ f.name }});
+{%- endfor %}
+    return __dict;
+
+error:
+    PyErr_SetString(PyExc_RuntimeError, "While unpacking {{ fn_name }}");
+{%- for f in fields %}
+    Py_XDECREF({{ f.name }});
+{%- endfor %}
+    Py_XDECREF(__dict);
+    return NULL;
+{% else %}
+    return PyDict_New();
+{% endif %}
+}
