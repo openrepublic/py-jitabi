@@ -17,6 +17,7 @@
 Code generation and compilation routines for ABI C modules.
 
 '''
+import sys
 import sysconfig
 import subprocess
 
@@ -265,7 +266,8 @@ def compile_module(
     ldflags = cfg.get_config_var('LDFLAGS') or ''
     libs = (
         f'-L{cfg.get_config_var("LIBDIR")} ' +
-        (cfg.get_config_var('LIBS') or '')
+        (cfg.get_config_var('LIBS') or '') +
+        f' -lpython{sys.version_info.major}.{sys.version_info.minor}'
     )
 
     include = cfg.get_config_var('INCLUDEPY')

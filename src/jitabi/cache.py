@@ -39,6 +39,7 @@ from ctypes import (
     c_void_p,
     py_object
 )
+from ctypes.util import find_library
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -57,12 +58,15 @@ EXT_SUFFIX = sysconfig.get_config_var('EXT_SUFFIX')
 # (module_name, source_hash)
 CacheKey = tuple[str, str]
 
-try:
-    libdl = CDLL('libdl.so')
+_libname = (
+    find_library('dl')
+    or
+    find_library('c')
+    or
+    'libc.so.6'
+)
 
-except OSError:
-    libdl = CDLL('libdl.so.2')
-
+libdl = CDLL(_libname)
 libdl.dlclose.argtypes = [c_void_p]
 
 def import_module(
