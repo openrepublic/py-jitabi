@@ -29,6 +29,7 @@ disk so that subsequent interpreter sessions can reuse them.
 '''
 from __future__ import annotations
 
+import gc
 import logging
 import sysconfig
 
@@ -37,6 +38,7 @@ from ctypes import (
     CDLL,
     PyDLL,
     c_void_p,
+    c_int,
     py_object
 )
 from ctypes.util import find_library
@@ -68,6 +70,7 @@ _libname = (
 
 libdl = CDLL(_libname)
 libdl.dlclose.argtypes = [c_void_p]
+libdl.dlclose.restype = c_int
 
 def import_module(
     mod_name: str,
@@ -225,6 +228,8 @@ class Cache:
                 entry.shared_lib = None
                 # ensure cleanup
                 del mod
+
+                gc.collect()
                 libdl.dlclose(shared_lib._handle)
                 del shared_lib
 
