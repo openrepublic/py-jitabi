@@ -7,10 +7,7 @@
 #include <stdio.h>
 #include <limits.h>
 
-// system & compiler checks
-#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
-    #error "little-endian host required"
-#endif
+// compiler checks
 #ifndef __SIZEOF_INT128__
     #error "int128 compiler support required"
 #endif

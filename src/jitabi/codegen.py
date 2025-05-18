@@ -17,7 +17,6 @@
 Code generation and compilation routines for ABI C modules.
 
 '''
-import sys
 import json
 import logging
 import sysconfig
