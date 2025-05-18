@@ -294,8 +294,15 @@ def compile_module(
     cfg = sysconfig
 
     # figure out compiler type
-    cc = cfg.get_config_var('CC') or 'cc'
-    cflags = cfg.get_config_var('CFLAGS') or ''
+    cc      = cfg.get_config_var('CC') or 'cc'
+    cflags  = cfg.get_config_var('CFLAGS') or ''
+    ldshared = cfg.get_config_var('LDSHARED')  or '-bundle -undefined dynamic_lookup'
+
+    ldshared = ' '.join([
+        piece
+        for piece in ldshared.split()
+        if piece not in cc
+    ])
 
     # CC flag might contain flags as well
     cc_cmd = cc.split()[0]
@@ -327,12 +334,6 @@ def compile_module(
     # figure out platform-specific build flags
     ext = cfg.get_config_var('EXT_SUFFIX')
     target_path = build_path / (name + ext)
-    ldflags = cfg.get_config_var('LDFLAGS') or ''
-    libs = (
-        f'-L{cfg.get_config_var("LIBDIR")} ' +
-        (cfg.get_config_var('LIBS') or '') +
-        f' -lpython{sys.version_info.major}.{sys.version_info.minor}'
-    )
     include = cfg.get_config_var('INCLUDEPY')
     if not include:
         raise RuntimeError(
@@ -340,17 +341,14 @@ def compile_module(
         )
 
     # finally construct compile command
-    cmd = ' '.join([
-        cc,
-        f'-I{include}',
-        cflags,
-        str(c_path),
-        ldflags,
-        libs,
-        '-shared',
-        '-fPIC',
-        '-o', str(target_path)
-    ]).split(' ')
+    # use the platform-correct “shared” flags for extension modules
+    cmd = []
+    cmd.extend(cc.split())
+    cmd.extend(ldshared.split())
+    cmd.extend(cflags.split())
+    cmd.append(f'-I{include}')
+    cmd.append(str(c_path))
+    cmd.extend([ '-o', str(target_path) ])
 
     logger.debug(f'Running compile command: {json.dumps(cmd, indent=4)}')
 
