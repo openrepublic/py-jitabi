@@ -165,11 +165,11 @@ def test_std_abi():
     abi = ABI.from_file(ABI_DIR / 'std_abi.json')
 
     start = time.time()
-    _test_jit_module_for(abi, with_pack=False)
-    elasped = time.time() - start
-    print(f'took {elasped:.2f} s to compile without pack fns')
-
-    start = time.time()
     _test_jit_module_for(abi, with_pack=True)
     elasped = time.time() - start
     print(f'took {elasped:.2f} s to compile')
+
+    start = time.time()
+    _test_jit_module_for(abi, with_pack=False)
+    elasped = time.time() - start
+    print(f'took {elasped:.2f} s to compile without pack fns')

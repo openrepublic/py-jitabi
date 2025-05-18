@@ -15,6 +15,13 @@ pack_{{ call.type_name }}(
 
 {%- macro pack_field(f) -%}
     {
+    {%- if f.call.modifier.name == "ARRAY" %}
+        Py_ssize_t __len;
+        Py_ssize_t __i;
+        char __len_buf[10];
+        ssize_t __varint_len;
+        PyObject *__list;
+    {%- endif %}
         {%- call m.indent(4) %}
         {{- m.debug_field(f) -}}
         {% endcall %}
@@ -50,17 +57,16 @@ pack_{{ call.type_name }}(
             return -1;
         }
 
-        Py_ssize_t __len = PyList_Size(__field);
-        char __len_buf[10];
-        ssize_t __varint_len = encode_varuint32((unsigned long long)__len, (char *)&__len_buf);
+        __len = PyList_Size(__field);
+        __varint_len = encode_varuint32((unsigned long long)__len, (char *)&__len_buf);
         if (__varint_len < 0 || (size_t)(__offset + __varint_len) > __out_len) return -1;
         memcpy(__out + __offset, __len_buf, (size_t)__varint_len);
         __offset += __varint_len;
 
-        PyObject *__list = __field;
-        for (Py_ssize_t i = 0; i < __len; i++) {
-            __field = PyList_GetItem(__list, i);
-            __consumed = {{ pack_fn(f.call) }}
+        __list = __field;
+        for (__i = 0; __i < __len; __i++) {
+            __field = PyList_GetItem(__list, __i);
+            __consumed = {{ pack_fn(f.call, indent_count=12) }}
             if (__consumed < 0) return -1;
             __offset += __consumed;
         }

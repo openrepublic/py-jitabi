@@ -5,7 +5,7 @@
 
 {% macro debug_field(field) %}
     // -------- field "{{ field.name }}":
-        {%- if field.call.modifier.name != "NONE" %} {{ field.call.modifier }}
+        {%- if field.call.modifier.name != "NONE" %} {{ field.call.modifier.name.lower() }}
         {%- endif %} "{{ field.call.type_name }}" --------
 
     JITABI_LOG_DEBUG(
