@@ -30,6 +30,7 @@ disk so that subsequent interpreter sessions can reuse them.
 from __future__ import annotations
 
 import gc
+import sys
 import logging
 import sysconfig
 
@@ -37,6 +38,7 @@ from types import ModuleType
 from ctypes import (
     CDLL,
     PyDLL,
+    RTLD_LOCAL,
     c_void_p,
     c_int,
     py_object
@@ -79,7 +81,7 @@ def import_module(
     # https://stackoverflow.com/questions/8295555/how-to-reload-a-python3-c-extension-module
     logger.debug(f'Importing module {mod_name} from {mod_path}')
 
-    shared_lib = PyDLL(mod_path)
+    shared_lib = PyDLL(mod_path, mode=RTLD_LOCAL)
 
     init_fn = getattr(shared_lib, f'PyInit_{mod_name}')
     init_fn.argypes = []
@@ -220,6 +222,12 @@ class Cache:
             if key in self._cache and self._cache[key].module:
                 # if this module was previously imported we need to delete all
                 # refs to it in order to actually get updated behaivour
+                try:
+                    del sys.modules[mod_name]
+                    logger.debug(f'Deleted {mod_name} from sys.modules')
+                except KeyError:
+                    pass
+
                 entry = self._cache[key]
                 # make local scope owner of shared_lib & module objects
                 mod = entry.module
