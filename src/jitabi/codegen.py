@@ -249,9 +249,26 @@ def c_source_from_abi(
         functions=functions
     )
 
-    # CACHE.set_abi_source((name, abi_hash), source)
-
     return source
+
+
+def detect_compiler_type(cmd: str) -> str | None:
+    '''
+    Runs `cmd --version` (or `cmd -v`) and heuristically looks for
+    'clang' or 'gcc' in the output.
+
+    '''
+    for args in ([cmd, '--version'], [cmd, '-v']):
+        try:
+            out = subprocess.check_output(args, stderr=subprocess.STDOUT, text=True)
+        except subprocess.CalledProcessError as e:
+            out = e.output
+        lower = out.lower()
+        if 'clang' in lower:
+            return 'clang'
+        if 'gcc' in lower or 'free software foundation' in lower:
+            return 'gcc'
+    return None
 
 
 def compile_module(
@@ -274,28 +291,30 @@ def compile_module(
     c_path = build_path / f'{name}.c'
     c_path.write_text(source)
 
-    # figure out platform-specific build flags
     cfg = sysconfig
-    ext = cfg.get_config_var('EXT_SUFFIX')
-    target_path = build_path / (name + ext)
 
+    # figure out compiler type
     cc = cfg.get_config_var('CC') or 'cc'
     cflags = cfg.get_config_var('CFLAGS') or ''
-    ldflags = cfg.get_config_var('LDFLAGS') or ''
-    libs = (
-        f'-L{cfg.get_config_var("LIBDIR")} ' +
-        (cfg.get_config_var('LIBS') or '') +
-        f' -lpython{sys.version_info.major}.{sys.version_info.minor}'
-    )
 
-    include = cfg.get_config_var('INCLUDEPY')
-    if not include:
-        raise RuntimeError(
-            'Could not locate python include dir at env var INCLUDEPY'
-        )
+    # CC flag might contain flags as well
+    cc_cmd = cc.split()[0]
+    compiler_type = detect_compiler_type(cc_cmd)
 
-    cflags += ' -Wno-maybe-uninitialized'
+    if not compiler_type:
+        logger.debug('Unknown compiler type!')
 
+    else:
+        match compiler_type:
+            case 'gcc':
+                cflags += ' -Wno-maybe-uninitialized'
+
+            case 'clang':
+                cflags += ' -Wno-sometimes-uninitialized'
+
+        logger.debug(f'Detected compiler type \"{compiler_type}\"')
+
+    # setup user provided optional params
     if debug:
         cflags += ' -D__JITABI_DEBUG'
 
@@ -305,6 +324,22 @@ def compile_module(
     if with_pack:
         cflags += ' -D__JITABI_PACK'
 
+    # figure out platform-specific build flags
+    ext = cfg.get_config_var('EXT_SUFFIX')
+    target_path = build_path / (name + ext)
+    ldflags = cfg.get_config_var('LDFLAGS') or ''
+    libs = (
+        f'-L{cfg.get_config_var("LIBDIR")} ' +
+        (cfg.get_config_var('LIBS') or '') +
+        f' -lpython{sys.version_info.major}.{sys.version_info.minor}'
+    )
+    include = cfg.get_config_var('INCLUDEPY')
+    if not include:
+        raise RuntimeError(
+            'Could not locate python include dir at env var INCLUDEPY'
+        )
+
+    # finally construct compile command
     cmd = ' '.join([
         cc,
         f'-I{include}',
