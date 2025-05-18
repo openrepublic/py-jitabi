@@ -19,10 +19,8 @@
 
 ## ⚙️ Requirements
 
-* **Python ≥ 3.10** (tested up to 3.12)
-* **C99-compatible compiler** (GCC ≥ 9 or Clang ≥ 10) with __int128 support.
-
-> **Windows / MSVC**: not yet supported – contributions welcome!
+* **Python ≥ 3.10**
+* **C99-compatible compiler**: GCC ≥ 9, Clang ≥ 10, MSVC ≥ 19.28 (VS 2019+)
 
 ---
 

@@ -28,6 +28,47 @@ JITABI_INLINE uint64_t read_le64(const char *p) {
 #endif
 }
 
+static PyObject *uint128_from_halves(uint64_t hi, uint64_t lo)
+{
+    PyObject *py_hi  = PyLong_FromUnsignedLongLong(hi);
+    if (!py_hi) return NULL;
+
+    PyObject *shift  = PyLong_FromLong(64);
+    if (!shift) { Py_DECREF(py_hi); return NULL; }
+
+    PyObject *py_hi_shifted = PyNumber_Lshift(py_hi, shift);
+    Py_DECREF(py_hi); Py_DECREF(shift);
+    if (!py_hi_shifted) return NULL;
+
+    PyObject *py_lo  = PyLong_FromUnsignedLongLong(lo);
+    if (!py_lo) { Py_DECREF(py_hi_shifted); return NULL; }
+
+    PyObject *res = PyNumber_Add(py_hi_shifted, py_lo);
+    Py_DECREF(py_hi_shifted); Py_DECREF(py_lo);
+    return res;  // new ref or NULL
+}
+
+static PyObject *int128_from_halves(uint64_t hi, uint64_t lo)
+{
+    // sign bit lives in the high half
+    const bool negative = (hi & 0x8000000000000000ULL) != 0;
+
+    if (!negative)  // fast path for non-negative numbers
+        return uint128_from_halves(hi, lo);
+
+    // two’s complement -> magnitude
+    hi = ~hi; lo = ~lo;
+    lo += 1;
+    if (lo == 0)  // propagate carry
+        hi += 1;
+
+    PyObject *mag = uint128_from_halves(hi, lo);
+    if (!mag) return NULL;
+    PyObject *neg = PyNumber_Negative(mag);
+    Py_DECREF(mag);
+    return neg;  // new ref or NULL
+}
+
 JITABI_INLINE unsigned long long decode_varuint32(const char *restrict p, size_t *consumed)
 {
     const unsigned char *s = (const unsigned char *)p;
@@ -88,17 +129,6 @@ JITABI_INLINE long long decode_varint32(const char *restrict p, size_t *consumed
     return r;
 }
 
-JITABI_INLINE PyObject *uint128_to_pylong(unsigned __int128 v)
-{
-    char buf[35];
-    snprintf(buf,
-             sizeof buf,
-             "0x%016llx%016llx",
-             (unsigned long long)(v >> 64),
-             (unsigned long long)v);
-    return PyLong_FromString(buf, NULL, 0);
-}
-
 JITABI_INLINE PyObject *unpack_bool (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 1;  return PyBool_FromLong(b[0] != 0); }
 
@@ -114,12 +144,17 @@ JITABI_INLINE PyObject *unpack_uint32 (const char *b, size_t buf_len, size_t *c)
 JITABI_INLINE PyObject *unpack_uint64 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 8;  return PyLong_FromUnsignedLongLong(read_le64(b)); }
 
-JITABI_INLINE PyObject *unpack_uint128 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *
+unpack_uint128(const char *b, size_t buf_len, size_t *c)
 {
+    if (buf_len < 16) {
+        PyErr_SetString(PyExc_ValueError, "buffer too small for uint128");
+        return NULL;
+    }
+    uint64_t lo = read_le64(b);
+    uint64_t hi = read_le64(b + 8);
     if (c) *c = 16;
-    unsigned __int128 v =
-        ((unsigned __int128)read_le64(b + 8) << 64) | read_le64(b);
-    return uint128_to_pylong(v);
+    return uint128_from_halves(hi, lo);
 }
 
 JITABI_INLINE PyObject *unpack_int8 (const char *b, size_t buf_len, size_t *c)
@@ -134,11 +169,17 @@ JITABI_INLINE PyObject *unpack_int32 (const char *b, size_t buf_len, size_t *c)
 JITABI_INLINE PyObject *unpack_int64 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 8;  return PyLong_FromLongLong((int64_t)read_le64(b)); }
 
-JITABI_INLINE PyObject *unpack_int128 (const char *b, size_t buf_len, size_t *c){
+JITABI_INLINE PyObject *
+unpack_int128(const char *b, size_t buf_len, size_t *c)
+{
+    if (buf_len < 16) {
+        PyErr_SetString(PyExc_ValueError, "buffer too small for int128");
+        return NULL;
+    }
+    uint64_t lo = read_le64(b);
+    uint64_t hi = read_le64(b + 8);
     if (c) *c = 16;
-    __int128 v; /* signed */
-    memcpy(&v, b, 16); /* avoids the &-on-temporary */
-    return uint128_to_pylong((unsigned __int128)v); /* quick & dirty -- adjust if you need signed range */
+    return int128_from_halves(hi, lo);
 }
 
 JITABI_INLINE PyObject *unpack_varuint32 (const char *b, size_t buf_len, size_t *c)

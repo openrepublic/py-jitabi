@@ -19,10 +19,13 @@ Code generation and compilation routines for ABI C modules.
 '''
 import json
 import logging
-import sysconfig
 import subprocess
 
 from pathlib import Path
+from setuptools._distutils import (
+    ccompiler,
+    sysconfig
+)
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -251,7 +254,7 @@ def c_source_from_abi(
     return source
 
 
-def detect_compiler_type(cmd: str) -> str | None:
+def detect_unix_compiler_type(cmd: str) -> str | None:
     '''
     Runs `cmd --version` (or `cmd -v`) and heuristically looks for
     'clang' or 'gcc' in the output.
@@ -268,6 +271,55 @@ def detect_compiler_type(cmd: str) -> str | None:
         if 'gcc' in lower or 'free software foundation' in lower:
             return 'gcc'
     return None
+
+
+def _compile_with_distutils(
+    name: str,
+    src: Path,
+    build: Path,
+    defines: list[str] = [],
+):
+    '''
+    Compile *src* into <build_dir>/<name><EXT_SUFFIX> with any compiler that
+    distutils knows about.
+
+    '''
+    cc = ccompiler.new_compiler()
+    sysconfig.customize_compiler(cc)
+
+    include_py = sysconfig.get_config_var('INCLUDEPY')
+
+    # translate to the right flag dialect
+    if cc.compiler_type == 'unix':
+        specific_type = detect_unix_compiler_type(Path(cc.compiler[0]).name)
+
+        if specific_type == 'gcc':
+            extra = ['-Wno-maybe-uninitialized']
+
+        elif specific_type == 'clang':
+            extra = ['-Wno-sometimes-uninitialized']
+
+        else:
+            extra = []
+
+    else:
+        extra = ['/wd4701']
+
+    for define in defines:
+        cc.define_macro(define)
+
+    objs = cc.compile(
+        [str(src)],
+        include_dirs=[include_py],
+        # output_dir=str(build),
+        extra_postargs=extra
+    )
+
+    ext = sysconfig.get_config_var('EXT_SUFFIX')
+    target = build / f'{name}{ext}'
+    cc.link_shared_object(objs, str(target))
+    return target
+
 
 
 def compile_module(
@@ -290,66 +342,14 @@ def compile_module(
     c_path = build_path / f'{name}.c'
     c_path.write_text(source)
 
-    cfg = sysconfig
-
-    # figure out compiler type
-    cc      = cfg.get_config_var('CC') or 'cc'
-    cflags  = cfg.get_config_var('CFLAGS') or ''
-    ldshared = cfg.get_config_var('LDSHARED')  or '-bundle -undefined dynamic_lookup'
-
-    ldshared = ' '.join([
-        piece
-        for piece in ldshared.split()
-        if piece not in cc
-    ])
-
-    # CC flag might contain flags as well
-    cc_cmd = cc.split()[0]
-    compiler_type = detect_compiler_type(cc_cmd)
-
-    if not compiler_type:
-        logger.debug('Unknown compiler type!')
-
-    else:
-        match compiler_type:
-            case 'gcc':
-                cflags += ' -Wno-maybe-uninitialized'
-
-            case 'clang':
-                cflags += ' -Wno-sometimes-uninitialized'
-
-        logger.debug(f'Detected compiler type \"{compiler_type}\"')
-
-    # setup user provided optional params
+    defs = []
     if debug:
-        cflags += ' -D__JITABI_DEBUG'
+        defs.append('__JITABI_DEBUG')
 
     if with_unpack:
-        cflags += ' -D__JITABI_UNPACK'
+        defs.append('__JITABI_UNPACK')
 
     if with_pack:
-        cflags += ' -D__JITABI_PACK'
+        defs.append('__JITABI_PACK')
 
-    # figure out platform-specific build flags
-    ext = cfg.get_config_var('EXT_SUFFIX')
-    target_path = build_path / (name + ext)
-    include = cfg.get_config_var('INCLUDEPY')
-    if not include:
-        raise RuntimeError(
-            'Could not locate python include dir at env var INCLUDEPY'
-        )
-
-    # finally construct compile command
-    # use the platform-correct “shared” flags for extension modules
-    cmd = []
-    cmd.extend(cc.split())
-    cmd.extend(ldshared.split())
-    cmd.extend(cflags.split())
-    cmd.append(f'-I{include}')
-    cmd.append(str(c_path))
-    cmd.extend([ '-o', str(target_path) ])
-
-    logger.debug(f'Running compile command: {json.dumps(cmd, indent=4)}')
-
-    # compile
-    subprocess.check_call(cmd)
+    _compile_with_distutils(name, c_path, build_path, defines=defs)

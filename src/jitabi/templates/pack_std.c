@@ -108,31 +108,34 @@ JITABI_INLINE ssize_t pack_uint64(PyObject *obj, char *out, size_t out_len)
     return 8;
 }
 
-JITABI_INLINE ssize_t pack_uint128(PyObject *obj, char *out, size_t out_len)
+JITABI_INLINE ssize_t
+pack_uint128(PyObject *obj, char *out, size_t out_len)
 {
+    if (out_len < 16) {
+        PyErr_SetString(PyExc_ValueError, "output buffer too small");
+        return -1;
+    }
     if (!PyLong_Check(obj)) {
         PyErr_SetString(PyExc_TypeError, "expected int for uint128");
         return -1;
     }
 
-    // Mask to get low 64 bits
-    PyObject *lo_obj = PyNumber_And(obj, PyLong_FromUnsignedLongLong(0xFFFFFFFFFFFFFFFFULL));
+    /* low 64 bits  */
+    PyObject *lo_obj = PyNumber_And(
+        obj, PyLong_FromUnsignedLongLong(0xFFFFFFFFFFFFFFFFULL));
     if (!lo_obj) return -1;
 
-    // Shift right to get high 64 bits
+    /* high 64 bits */
     PyObject *hi_obj = PyNumber_Rshift(obj, PyLong_FromLong(64));
     if (!hi_obj) { Py_DECREF(lo_obj); return -1; }
 
     uint64_t lo = PyLong_AsUnsignedLongLong(lo_obj);
     uint64_t hi = PyLong_AsUnsignedLongLong(hi_obj);
-
-    Py_DECREF(lo_obj);
-    Py_DECREF(hi_obj);
-
+    Py_DECREF(lo_obj); Py_DECREF(hi_obj);
     if (PyErr_Occurred()) return -1;
 
-    memcpy(out,     &lo, 8);
-    memcpy(out + 8, &hi, 8);
+    memcpy(out,      &lo, 8);
+    memcpy(out + 8,  &hi, 8);
     return 16;
 }
 
@@ -198,37 +201,46 @@ JITABI_INLINE ssize_t pack_int64(PyObject *obj, char *out, size_t out_len)
     return 8;
 }
 
-JITABI_INLINE ssize_t pack_int128(PyObject *obj, char *out, size_t out_len)
+JITABI_INLINE ssize_t
+pack_int128(PyObject *obj, char *out, size_t out_len)
 {
+    if (out_len < 16) {
+        PyErr_SetString(PyExc_ValueError, "output buffer too small");
+        return -1;
+    }
     if (!PyLong_Check(obj)) {
         PyErr_SetString(PyExc_TypeError, "expected int for int128");
         return -1;
     }
 
-    // Convert Python int to two's complement 16-byte representation manually
-    PyObject *tmp = PyNumber_ToBase(obj, 10);
-    if (!tmp) return -1;
+    const int sign = PyObject_RichCompareBool(obj, PyLong_FromLong(0), Py_LT);
+    if (sign < 0) return -1;                      /* error */
 
-    __int128 val = 0;
-    int sign = PyObject_RichCompareBool(obj, PyLong_FromLong(0), Py_LT);
-    if (sign < 0) return -1;
+    PyObject *abs_obj = sign ? PyNumber_Negative(obj) : obj;
+    Py_INCREF(abs_obj);
 
-    PyObject *abs_obj = PyNumber_Absolute(obj);
-    if (!abs_obj) return -1;
+    /* magnitude halves                                                  */
+    PyObject *lo_obj = PyNumber_And(
+        abs_obj, PyLong_FromUnsignedLongLong(0xFFFFFFFFFFFFFFFFULL));
+    if (!lo_obj) { Py_DECREF(abs_obj); return -1; }
 
-    uint64_t lo = PyLong_AsUnsignedLongLong(abs_obj);
     PyObject *hi_obj = PyNumber_Rshift(abs_obj, PyLong_FromLong(64));
-    uint64_t hi = PyLong_AsUnsignedLongLong(hi_obj);
-    Py_DECREF(abs_obj);
-    Py_DECREF(hi_obj);
+    if (!hi_obj) { Py_DECREF(abs_obj); Py_DECREF(lo_obj); return -1; }
 
+    uint64_t lo = PyLong_AsUnsignedLongLong(lo_obj);
+    uint64_t hi = PyLong_AsUnsignedLongLong(hi_obj);
+    Py_DECREF(abs_obj); Py_DECREF(lo_obj); Py_DECREF(hi_obj);
     if (PyErr_Occurred()) return -1;
 
-    val = ((__int128)hi << 64) | lo;
+    if (sign) {                                   /* two’s complement      */
+        lo = ~lo;
+        hi = ~hi;
+        lo += 1;
+        if (lo == 0) hi += 1;
+    }
 
-    if (sign) val = -val;
-
-    memcpy(out, &val, 16);
+    memcpy(out,     &lo, 8);
+    memcpy(out + 8, &hi, 8);
     return 16;
 }
 
