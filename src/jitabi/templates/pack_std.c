@@ -75,11 +75,13 @@ JITABI_INLINE ssize_t pack_uint32(PyObject *obj, char *out, size_t out_len)
     unsigned long val = PyLong_AsUnsignedLong(obj);
     if (PyErr_Occurred()) return -1;
 
+#if defined(_WIN32) || defined(_WIN64)
     // On LLP64 platforms like Windows, PyLong_AsUnsignedLong may truncate >32-bit
     if (val > 0xFFFFFFFFUL) {
         PyErr_SetString(PyExc_OverflowError, "uint32 out of range");
         return -1;
     }
+#endif
 
     uint32_t u32 = (uint32_t)val;
     out[0] = (char)(u32 & 0xFF);

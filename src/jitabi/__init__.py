@@ -42,6 +42,12 @@ from jitabi.protocol import (
     hash_abi_view
 )
 
+from jitabi.utils import detect_working_compiler
+
+
+if not detect_working_compiler():
+    raise RuntimeError('A C compiler is required please set the CC flag')
+
 
 logger = logging.getLogger(__name__)
 
