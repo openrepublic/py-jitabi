@@ -94,6 +94,8 @@ class JITContext:
         source: str,
         *,
         debug: bool = False,
+        with_unpack: bool = True,
+        with_pack: bool = True,
         use_cache: bool = True
     ) -> ModuleType:
         '''
@@ -115,7 +117,14 @@ class JITContext:
         # not cached: compile now
         logger.info(f'Compiling module {mod_name} (hash {src_hash})')
         output_dir = self._cache.get_module_path((mod_name, src_hash))
-        codegen.compile_module(mod_name, source, output_dir, debug=debug)
+        codegen.compile_module(
+            mod_name,
+            source,
+            output_dir,
+            debug=debug,
+            with_unpack=with_unpack,
+            with_pack=with_pack
+        )
 
         module = self._cache.get_module((mod_name, src_hash), reload=True)
         if module is None:
@@ -132,6 +141,8 @@ class JITContext:
         abi: ABIView,
         *,
         debug: bool = False,
+        with_unpack: bool = True,
+        with_pack: bool = True,
         use_cache: bool = True
     ) -> ModuleType:
         '''
@@ -149,5 +160,18 @@ class JITContext:
                 )
                 return module
 
-        _, source = self.c_source_from_abi(mod_name, abi, use_cache=use_cache)
-        return self.compile_module(mod_name, src_hash, source, debug=debug, use_cache=use_cache)
+        _, source = self.c_source_from_abi(
+            mod_name,
+            abi,
+            use_cache=use_cache
+        )
+
+        return self.compile_module(
+            mod_name,
+            src_hash,
+            source,
+            debug=debug,
+            with_unpack=with_unpack,
+            with_pack=with_pack,
+            use_cache=use_cache
+        )

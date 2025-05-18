@@ -73,23 +73,23 @@ DEFAULT_STRUCTS = [
 
 
 # extra aliases added to all abi modules
-DEFAULT_ALIASES = [
-    ('float128', 'raw(16)'),
-    ('name', 'uint64'),
-    ('account_name', 'uint64'),
-    ('symbol', 'uint64'),
-    ('symbol_code', 'uint64'),
-    ('rd160', 'raw(20)'),
-    ('checksum160', 'raw(20)'),
-    ('sha256', 'raw(32)'),
-    ('checksum256', 'raw(32)'),
-    ('checksum512', 'raw(64)'),
-    ('time_point', 'uint64'),
-    ('time_point_sec', 'uint32'),
-    ('block_timestamp_type', 'uint32'),
-    ('public_key', 'raw(34)'),
-    ('signature', 'raw(66)'),
-]
+DEFAULT_ALIASES: dict[str, str] = {
+    'float128': 'raw(16)',
+    'name': 'uint64',
+    'account_name': 'uint64',
+    'symbol': 'uint64',
+    'symbol_code': 'uint64',
+    'rd160': 'raw(20)',
+    'checksum160': 'raw(20)',
+    'sha256': 'raw(32)',
+    'checksum256': 'raw(32)',
+    'checksum512': 'raw(64)',
+    'time_point': 'uint64',
+    'time_point_sec': 'uint32',
+    'block_timestamp_type': 'uint32',
+    'public_key': 'raw(34)',
+    'signature': 'raw(66)',
+}
 
 
 # generate a hash of all the default types which is used as seed for all
@@ -107,7 +107,7 @@ for struct_def in DEFAULT_STRUCTS:
         h.update(field['name'].encode())
         h.update(field['type'].encode())
 
-for new_type, from_type in DEFAULT_ALIASES:
+for new_type, from_type in DEFAULT_ALIASES.items():
     h.update(new_type.encode())
     h.update(from_type.encode())
 

@@ -18,6 +18,8 @@ Code generation and compilation routines for ABI C modules.
 
 '''
 import sys
+import json
+import logging
 import sysconfig
 import subprocess
 
@@ -37,6 +39,9 @@ from jitabi.protocol import (
     TypeModifier,
     ABIView,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 TEMPLATE_DIR = Path(__file__).with_name('templates')
@@ -135,7 +140,7 @@ def c_source_from_abi(
     valid_types = [
         'raw',
         *STD_TYPES,
-        *[ntype for ntype, _ in DEFAULT_ALIASES],
+        *[ntype for ntype in DEFAULT_ALIASES],
         *[s['name'] for s in DEFAULT_STRUCTS],
         *[s.name() for s in abi.structs()],
         *[e.name() for e in abi.enums()],
@@ -209,7 +214,15 @@ def c_source_from_abi(
         check_ident(anew, f'alias {anew}')
         afrom = a.from_type_name()
         check_ident(afrom, f'alias {anew} from {afrom}')
-        alias_defs.append((anew, afrom))
+
+        if anew in alias_defs:
+            old_target = alias_defs.get(anew, None)
+            if old_target and old_target != afrom:
+                logger.warning(
+                    f'Replaced alias def {anew}, was {old_target} now is {afrom}'
+                )
+
+        alias_defs[anew] = afrom
 
     aliases = [
         {
@@ -223,8 +236,11 @@ def c_source_from_abi(
                 call=fn_meta_from(from_type_name, valid_types)
             )
         }
-        for (new_type_name, from_type_name) in alias_defs
+        for new_type_name, from_type_name in alias_defs.items()
     ]
+
+    logger.debug(f'Function names: {json.dumps([f["name"] for f in functions], indent=4)}')
+    logger.debug(f'Aliases: {json.dumps(alias_defs, indent=4)}')
 
     source = module_tmpl.render(
         m_name=name,
@@ -243,6 +259,8 @@ def compile_module(
     source: str,
     build_path: Path | str,
     debug: bool = False,
+    with_unpack: bool = True,
+    with_pack: bool = True
 ):
     '''
     Compile the generated C source into a shared object for import.
@@ -276,8 +294,16 @@ def compile_module(
             'Could not locate python include dir at env var INCLUDEPY'
         )
 
+    cflags += ' -Wno-maybe-uninitialized'
+
     if debug:
         cflags += ' -D__JITABI_DEBUG'
+
+    if with_unpack:
+        cflags += ' -D__JITABI_UNPACK'
+
+    if with_pack:
+        cflags += ' -D__JITABI_PACK'
 
     cmd = ' '.join([
         cc,
@@ -288,9 +314,10 @@ def compile_module(
         libs,
         '-shared',
         '-fPIC',
-        '-Wno-maybe-uninitialized',
         '-o', str(target_path)
     ]).split(' ')
+
+    logger.debug(f'Running compile command: {json.dumps(cmd, indent=4)}')
 
     # compile
     subprocess.check_call(cmd)
