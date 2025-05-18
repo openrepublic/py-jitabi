@@ -17,6 +17,7 @@
 Code generation and compilation routines for ABI C modules.
 
 '''
+import sys as py_sys
 import json
 import logging
 import subprocess
@@ -280,14 +281,24 @@ def _compile_with_distutils(
     defines: list[str] = [],
 ):
     '''
-    Compile *src* into <build_dir>/<name><EXT_SUFFIX> with any compiler that
-    distutils knows about.
+    Compile *src* into <build_dir>/<name><EXT_SUFFIX> with the supported
+    compilers:
 
+        on unix:
+            - gcc
+            - clang
+
+        on windows:
+            - cl
     '''
     cc = ccompiler.new_compiler()
     sysconfig.customize_compiler(cc)
 
     include_py = sysconfig.get_config_var('INCLUDEPY')
+
+    libs: list[str]  = []
+    library_dirs: list[str]  = []
+    extra: list[str] = []
 
     # translate to the right flag dialect
     if cc.compiler_type == 'unix':
@@ -299,10 +310,25 @@ def _compile_with_distutils(
         elif specific_type == 'clang':
             extra = ['-Wno-sometimes-uninitialized']
 
-        else:
-            extra = []
-
     else:
+        # need to add -lpythonVERSION lib implicitly
+        ver = sysconfig.get_config_var('VERSION')
+        libname = f'python{ver.replace(".", "")}'
+
+        # maybe debug build of CPython?
+        if hasattr(py_sys, 'gettotalrefcount'):
+            libname += '_d'
+
+        libs.append(libname)
+
+        libdir = (
+            sysconfig.get_config_var('LIBDIR') or  # venvs
+            sysconfig.get_config_var('LIBPL')  or  # embedded/dist
+            Path(py_sys.base_prefix) / 'libs'
+        )
+        library_dirs.append(str(libdir))
+
+        # equivalent of -Wno-maybe-uninitialized
         extra = ['/wd4701']
 
     for define in defines:
@@ -311,13 +337,17 @@ def _compile_with_distutils(
     objs = cc.compile(
         [str(src)],
         include_dirs=[include_py],
-        # output_dir=str(build),
         extra_postargs=extra
     )
 
     ext = sysconfig.get_config_var('EXT_SUFFIX')
     target = build / f'{name}{ext}'
-    cc.link_shared_object(objs, str(target))
+    cc.link_shared_object(
+        objs,
+        str(target),
+        libraries=libs,
+        library_dirs=library_dirs,
+    )
     return target
 
 
