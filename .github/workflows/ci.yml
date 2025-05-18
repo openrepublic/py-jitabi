@@ -4,21 +4,18 @@ on: [push]
 
 jobs:
   auto-tests:
-    name: Pytest (${{ matrix.platform }} – ${{ matrix.compiler }})
+    name: Pytest (${{ matrix.platform }} - ${{ matrix.compiler }})
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux – GCC
           - platform: ubuntu-24.04
             compiler: gcc
 
-          # Linux – Clang
           - platform: ubuntu-24.04
             compiler: clang
 
-          # macOS – system Clang
           - platform: macos-latest
             compiler: clang
 
@@ -32,8 +29,7 @@ jobs:
         with:
           submodules: recursive
 
-      # Linux images already have GCC; we only need Clang for that variant
-      - name: Ensure clang is available
+      - name: Ensure clang is available (only if required)
         if: runner.os == 'Linux' && matrix.compiler == 'clang'
         run: |
           sudo apt-get update -y && sudo apt-get install -y clang
@@ -43,14 +39,17 @@ jobs:
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Cache venv
-        uses: actions/cache@v3
-        with:
-          path: ./.venv
-          key: venv-${{ matrix.platform }}-${{ matrix.compiler }}-${{ hashFiles('uv.lock') }}
-
-      - name: Create virtualenv
+      - name: Create 3.10 virtualenv
         run: uv venv .venv --python=3.10
+
+      - name: Install project (uv sync)
+        run: uv sync
+
+      - name: Run tests
+        run: uv run pytest -s --log-cli-level=debug
+
+      - name: Create 3.13 virtualenv
+        run: uv venv .venv --python=3.13
 
       - name: Install project (uv sync)
         run: uv sync
