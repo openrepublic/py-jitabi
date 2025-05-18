@@ -1,11 +1,34 @@
-static inline uint16_t read_le16(const char *p) { return *(const uint16_t *)p; }
+JITABI_INLINE uint16_t read_le16(const char *p) {
+#if defined(__x86_64__)
+    return *(const uint16_t *)p;
+#else
+    uint16_t v;
+    memcpy(&v, p, 2);
+    return v;
+#endif
+}
 
-static inline uint32_t read_le32(const char *p) { return *(const uint32_t *)p; }
+JITABI_INLINE uint32_t read_le32(const char *p) {
+#if defined(__x86_64__)
+    return *(const uint32_t *)p;
+#else
+    uint32_t v;
+    memcpy(&v, p, 4);
+    return v;
+#endif
+}
 
-static inline uint64_t read_le64(const char *p) { return *(const uint64_t *)p; }
+JITABI_INLINE uint64_t read_le64(const char *p) {
+#if defined(__x86_64__)
+    return *(const uint64_t *)p;
+#else
+    uint64_t v;
+    memcpy(&v, p, 8);
+    return v;
+#endif
+}
 
-static inline __attribute__((always_inline, hot, pure))
-unsigned long long decode_varuint32(const char *restrict p, size_t *consumed)
+JITABI_INLINE unsigned long long decode_varuint32(const char *restrict p, size_t *consumed)
 {
     const unsigned char *s = (const unsigned char *)p;
     unsigned long long r = 0;
@@ -32,8 +55,7 @@ unsigned long long decode_varuint32(const char *restrict p, size_t *consumed)
     return r;
 }
 
-static inline __attribute__((always_inline, hot, pure))
-long long decode_varint32(const char *restrict p, size_t *consumed)
+JITABI_INLINE long long decode_varint32(const char *restrict p, size_t *consumed)
 {
     const unsigned char *s = (const unsigned char *)p;
     long long r = 0;
@@ -66,8 +88,7 @@ long long decode_varint32(const char *restrict p, size_t *consumed)
     return r;
 }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *uint128_to_pylong(unsigned __int128 v)
+JITABI_INLINE PyObject *uint128_to_pylong(unsigned __int128 v)
 {
     char buf[35];
     snprintf(buf,
@@ -78,28 +99,22 @@ PyObject *uint128_to_pylong(unsigned __int128 v)
     return PyLong_FromString(buf, NULL, 0);
 }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_bool (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_bool (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 1;  return PyBool_FromLong(b[0] != 0); }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_uint8 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_uint8 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 1;  return PyLong_FromUnsignedLong((unsigned char)b[0]); }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_uint16 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_uint16 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 2;  return PyLong_FromUnsignedLong(read_le16(b)); }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_uint32 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_uint32 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 4;  return PyLong_FromUnsignedLong(read_le32(b)); }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_uint64 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_uint64 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 8;  return PyLong_FromUnsignedLongLong(read_le64(b)); }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_uint128 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_uint128 (const char *b, size_t buf_len, size_t *c)
 {
     if (c) *c = 16;
     unsigned __int128 v =
@@ -107,46 +122,38 @@ PyObject *unpack_uint128 (const char *b, size_t buf_len, size_t *c)
     return uint128_to_pylong(v);
 }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_int8 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_int8 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 1;  return PyLong_FromLong((signed char)b[0]); }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_int16 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_int16 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 2;  return PyLong_FromLong((int16_t)read_le16(b)); }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_int32 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_int32 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 4;  return PyLong_FromLong((int32_t)read_le32(b)); }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_int64 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_int64 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 8;  return PyLong_FromLongLong((int64_t)read_le64(b)); }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_int128 (const char *b, size_t buf_len, size_t *c){
+JITABI_INLINE PyObject *unpack_int128 (const char *b, size_t buf_len, size_t *c){
     if (c) *c = 16;
     __int128 v; /* signed */
     memcpy(&v, b, 16); /* avoids the &-on-temporary */
     return uint128_to_pylong((unsigned __int128)v); /* quick & dirty -- adjust if you need signed range */
 }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_varuint32 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_varuint32 (const char *b, size_t buf_len, size_t *c)
 {
     unsigned long long v = decode_varuint32(b, c);
     return PyLong_FromUnsignedLongLong(v);
 }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_varint32 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_varint32 (const char *b, size_t buf_len, size_t *c)
 {
     long long v = decode_varint32(b, c);
     return PyLong_FromLongLong(v);
 }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_float32 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_float32 (const char *b, size_t buf_len, size_t *c)
 {
     if (c) *c = 4;
     float f;
@@ -154,8 +161,7 @@ PyObject *unpack_float32 (const char *b, size_t buf_len, size_t *c)
     return PyFloat_FromDouble((double)f);
 }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_float64 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_float64 (const char *b, size_t buf_len, size_t *c)
 {
     if (c) *c = 8;
     double d;
@@ -163,15 +169,13 @@ PyObject *unpack_float64 (const char *b, size_t buf_len, size_t *c)
     return PyFloat_FromDouble(d);
 }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_raw (const char *b, size_t len, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_raw (const char *b, size_t len, size_t buf_len, size_t *c)
 {
     if (c) *c = len;
     return PyBytes_FromStringAndSize(b, len);
 }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_bytes (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_bytes (const char *b, size_t buf_len, size_t *c)
 {
     size_t len_consumed = 0;
     unsigned long long l = decode_varuint32(b, &len_consumed);
@@ -189,8 +193,7 @@ PyObject *unpack_bytes (const char *b, size_t buf_len, size_t *c)
     return PyBytes_FromStringAndSize(b + len_consumed, (Py_ssize_t)l);
 }
 
-static inline __attribute__((always_inline, hot, pure))
-PyObject *unpack_string (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE PyObject *unpack_string (const char *b, size_t buf_len, size_t *c)
 {
     size_t len_consumed = 0;
     unsigned long long l = decode_varuint32(b, &len_consumed);

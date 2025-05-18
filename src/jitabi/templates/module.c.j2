@@ -19,6 +19,7 @@
     #error "one of __JITABI_PACK or __JITABI_UNPACK must be defined"
 #endif
 
+#define JITABI_INLINE static inline __attribute__((always_inline, hot))
 
 #ifdef __JITABI_DEBUG
 #include <stdarg.h>
