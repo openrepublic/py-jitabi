@@ -10,6 +10,7 @@ jobs:
       matrix:
         platform:
           - ubuntu-24.04
+          - macos-latest
 
     timeout-minutes: 10
     steps:
@@ -33,4 +34,4 @@ jobs:
         run: uv sync
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run pytest -s --log-cli-level=debug
