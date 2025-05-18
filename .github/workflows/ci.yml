@@ -13,20 +13,17 @@ jobs:
           # Linux – GCC
           - platform: ubuntu-24.04
             compiler: gcc
-            cxx: g++
 
           # Linux – Clang
           - platform: ubuntu-24.04
             compiler: clang
-            cxx: clang++
 
           # macOS – system Clang
           - platform: macos-latest
             compiler: clang
-            cxx: clang++
-    env:
-      CC:  ${{ matrix.compiler }}
-      CXX: ${{ matrix.cxx }}
+
+          - platform: windows-2022
+            compiler: cl
 
     timeout-minutes: 15
 
