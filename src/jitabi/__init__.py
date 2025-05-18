@@ -61,6 +61,14 @@ class JITContext:
             f'Initialized JITContext with cache at {self._cache.fs_location}'
         )
 
+        self._versions: dict = {}
+
+    def _full_mod_name(self, name: str) -> str:
+        return f'{name}_{self._versions.setdefault(name, 0)}'
+
+    def _inc_mod_name(self, name: str):
+        self._versions[name] += 1
+
     def c_source_from_abi(
         self,
         name: str,
@@ -73,6 +81,8 @@ class JITContext:
         available.
 
         '''
+        name = self._full_mod_name(name)
+
         abi_hash = hash_abi_view(abi)
         if use_cache:
             logger.debug(f'Looking up C source for {name} (hash {abi_hash})')
@@ -83,8 +93,10 @@ class JITContext:
                 return abi_hash, source
 
         logger.debug(f'Generating new C source for {name} (hash {abi_hash})')
+        key = (name, abi_hash)
+        # nonce = self._cache.get_entry_nonce(key)
         source = codegen.c_source_from_abi(name, abi_hash, abi)
-        self._cache.set_abi_source((name, abi_hash), source)
+        self._cache.set_abi_source(key, source)
         return abi_hash, source
 
     def compile_module(
@@ -103,6 +115,8 @@ class JITContext:
         it.
 
         '''
+        mod_name = self._full_mod_name(mod_name)
+
         logger.debug(
             f'Requesting compiled module for {mod_name} (hash {src_hash})'
         )
@@ -149,16 +163,20 @@ class JITContext:
         Return a compiled extension for *abi*, compiling it if necessary.
 
         '''
+        full_mod_name = self._full_mod_name(mod_name)
         src_hash = hash_abi_view(abi)
-        logger.debug(f'Requesting module for {mod_name} (hash {src_hash})')
+        logger.debug(f'Requesting module for {full_mod_name} (hash {src_hash})')
 
+        module = self._cache.get_module((full_mod_name, src_hash))
         if use_cache:
-            module = self._cache.get_module((mod_name, src_hash))
             if module is not None:
                 logger.debug(
-                    f'Using cached module for {mod_name} (hash {src_hash})'
+                    f'Using cached module for {full_mod_name} (hash {src_hash})'
                 )
                 return module
+
+        elif module:
+            self._inc_mod_name(mod_name)
 
         _, source = self.c_source_from_abi(
             mod_name,

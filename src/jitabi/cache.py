@@ -29,21 +29,11 @@ disk so that subsequent interpreter sessions can reuse them.
 '''
 from __future__ import annotations
 
-import gc
-import sys
 import logging
 import sysconfig
+import importlib
 
 from types import ModuleType
-from ctypes import (
-    CDLL,
-    PyDLL,
-    RTLD_LOCAL,
-    c_void_p,
-    c_int,
-    py_object
-)
-from ctypes.util import find_library
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -62,45 +52,32 @@ EXT_SUFFIX = sysconfig.get_config_var('EXT_SUFFIX')
 # (module_name, source_hash)
 CacheKey = tuple[str, str]
 
-_libname = (
-    find_library('dl')
-    or
-    find_library('c')
-    or
-    'libc.so.6'
-)
-
-libdl = CDLL(_libname)
-libdl.dlclose.argtypes = [c_void_p]
-libdl.dlclose.restype = c_int
 
 def import_module(
     mod_name: str,
     mod_path: Path,
-) -> tuple[PyDLL, ModuleType]:
-    # https://stackoverflow.com/questions/8295555/how-to-reload-a-python3-c-extension-module
+) -> ModuleType:
     logger.debug(f'Importing module {mod_name} from {mod_path}')
 
-    shared_lib = PyDLL(mod_path, mode=RTLD_LOCAL)
-
-    init_fn = getattr(shared_lib, f'PyInit_{mod_name}')
-    init_fn.argypes = []
-    init_fn.restype = py_object
-
-    return shared_lib, init_fn()
+    spec = importlib.util.spec_from_file_location(
+        mod_name,
+        str(mod_path),
+        loader=importlib.machinery.ExtensionFileLoader(mod_name, str(mod_path))
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 @dataclass
 class CacheEntry:
     source: str | None
-    shared_lib: PyDLL | None
     module: ModuleType | None
 
     @staticmethod
     def default() -> CacheEntry:
         return CacheEntry(
             source=None,
-            shared_lib=None,
             module=None
         )
 
@@ -139,7 +116,6 @@ class Cache:
 
                 key: CacheKey = (mod_name, src_hash_dir.name)
                 source: str | None = None
-                shared_lib: PyDLL | None = None
                 module: ModuleType | None = None
 
                 # load C source if present
@@ -152,14 +128,13 @@ class Cache:
                 mod_path = src_hash_dir / f'{mod_name}{EXT_SUFFIX}'
                 if mod_path.is_file():
                     try:
-                        shared_lib, module = import_module(mod_name, mod_path)
+                        module = import_module(mod_name, mod_path)
                         logger.debug(f'Loaded compiled module for {mod_name} (hash {key[1]}')
                     except Exception:  # pragma: no cover – ignore broken cache entries
                         logger.exception(f'Failed to import cached module {mod_path}')
 
                 self._cache[key] = CacheEntry(
                     source=source,
-                    shared_lib=shared_lib,
                     module=module
                 )
 
@@ -219,35 +194,11 @@ class Cache:
             return None
 
         try:
-            if key in self._cache and self._cache[key].module:
-                # if this module was previously imported we need to delete all
-                # refs to it in order to actually get updated behaivour
-                try:
-                    del sys.modules[mod_name]
-                    logger.debug(f'Deleted {mod_name} from sys.modules')
-                except KeyError:
-                    pass
-
-                entry = self._cache[key]
-                # make local scope owner of shared_lib & module objects
-                mod = entry.module
-                shared_lib = entry.shared_lib
-                entry.module = None
-                entry.shared_lib = None
-                # ensure cleanup
-                del mod
-
-                gc.collect()
-
-                libdl.dlclose(shared_lib._handle)
-                del shared_lib
-
-            shared_lib, module = import_module(mod_name, mod_path)
+            module = import_module(mod_name, mod_path)
 
         except Exception:
             logger.exception(f'Failed to import module {mod_path}')
             return None
 
-        self._cache.setdefault(key, CacheEntry.default()).shared_lib = shared_lib
-        self._cache.get(key).module = module
+        self._cache.setdefault(key, CacheEntry.default()).module = module
         return module
