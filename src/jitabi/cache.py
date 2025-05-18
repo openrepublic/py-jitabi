@@ -29,6 +29,7 @@ disk so that subsequent interpreter sessions can reuse them.
 '''
 from __future__ import annotations
 
+import gc
 import logging
 import sysconfig
 
@@ -227,6 +228,8 @@ class Cache:
                 entry.shared_lib = None
                 # ensure cleanup
                 del mod
+
+                gc.collect()
 
                 libdl.dlclose(shared_lib._handle)
                 del shared_lib
