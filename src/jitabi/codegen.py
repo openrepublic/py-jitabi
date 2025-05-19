@@ -255,22 +255,28 @@ def c_source_from_abi(
     return source
 
 
-def detect_unix_compiler_type(cmd: str) -> str | None:
+def detect_compiler_type(cmd: str) -> str | None:
     '''
     Runs `cmd --version` (or `cmd -v`) and heuristically looks for
     'clang' or 'gcc' in the output.
 
     '''
-    for args in ([cmd, '--version'], [cmd, '-v']):
+    for args in ([cmd], [cmd, '--version'], [cmd, '-v']):
         try:
             out = subprocess.check_output(args, stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             out = e.output
+
+        except FileNotFoundError:
+            continue
+
         lower = out.lower()
         if 'clang' in lower:
             return 'clang'
         if 'gcc' in lower or 'free software foundation' in lower:
             return 'gcc'
+        if 'microsoft' in lower:
+            return 'cl'
     return None
 
 
@@ -290,6 +296,7 @@ def _compile_with_distutils(
 
         on windows:
             - cl
+            - clang
     '''
     cc = ccompiler.new_compiler()
     sysconfig.customize_compiler(cc)
@@ -300,17 +307,26 @@ def _compile_with_distutils(
     library_dirs: list[str]  = []
     extra: list[str] = []
 
-    # translate to the right flag dialect
-    if cc.compiler_type == 'unix':
-        specific_type = detect_unix_compiler_type(Path(cc.compiler[0]).name)
+    specific_type = detect_compiler_type(
+        Path(cc.compiler[0]).name
+        if cc.compiler_type == 'unix'
+        else 'cl.exe'
+    )
 
-        if specific_type == 'gcc':
-            extra = ['-Wno-maybe-uninitialized']
+    if specific_type == 'gcc':
+        extra = ['-Wno-maybe-uninitialized']
 
-        elif specific_type == 'clang':
-            extra = ['-Wno-sometimes-uninitialized']
+    elif specific_type == 'clang':
+        extra = [
+            '-Wno-sometimes-uninitialized',
+            '-Wno-unused-function'
+        ]
 
-    else:
+    elif specific_type == 'cl':
+        # equivalent of -Wno-maybe-uninitialized
+        extra = ['/wd4701']
+
+    if cc.compiler_type == 'msvc':
         # need to add -lpythonVERSION lib implicitly
         ver = sysconfig.get_config_var('VERSION')
         libname = f'python{ver.replace(".", "")}'
@@ -328,8 +344,10 @@ def _compile_with_distutils(
         )
         library_dirs.append(str(libdir))
 
-        # equivalent of -Wno-maybe-uninitialized
-        extra = ['/wd4701']
+        if specific_type == 'clang':
+            extra += [
+                '-Wno-visibility'
+            ]
 
     for define in defines:
         cc.define_macro(define)

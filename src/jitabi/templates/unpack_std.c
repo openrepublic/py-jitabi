@@ -1,4 +1,4 @@
-JITABI_INLINE uint16_t read_le16(const char *p) {
+JITABI_INLINE_ALWAYS uint16_t read_le16(const char *p) {
 #if defined(__x86_64__)
     return *(const uint16_t *)p;
 #else
@@ -8,7 +8,7 @@ JITABI_INLINE uint16_t read_le16(const char *p) {
 #endif
 }
 
-JITABI_INLINE uint32_t read_le32(const char *p) {
+JITABI_INLINE_ALWAYS uint32_t read_le32(const char *p) {
 #if defined(__x86_64__)
     return *(const uint32_t *)p;
 #else
@@ -18,7 +18,7 @@ JITABI_INLINE uint32_t read_le32(const char *p) {
 #endif
 }
 
-JITABI_INLINE uint64_t read_le64(const char *p) {
+JITABI_INLINE_ALWAYS uint64_t read_le64(const char *p) {
 #if defined(__x86_64__)
     return *(const uint64_t *)p;
 #else
@@ -28,7 +28,7 @@ JITABI_INLINE uint64_t read_le64(const char *p) {
 #endif
 }
 
-static PyObject *uint128_from_halves(uint64_t hi, uint64_t lo)
+JITABI_INLINE_ALWAYS PyObject *uint128_from_halves(uint64_t hi, uint64_t lo)
 {
     PyObject *py_hi  = PyLong_FromUnsignedLongLong(hi);
     if (!py_hi) return NULL;
@@ -48,7 +48,7 @@ static PyObject *uint128_from_halves(uint64_t hi, uint64_t lo)
     return res;  // new ref or NULL
 }
 
-static PyObject *int128_from_halves(uint64_t hi, uint64_t lo)
+JITABI_INLINE_ALWAYS PyObject *int128_from_halves(uint64_t hi, uint64_t lo)
 {
     // sign bit lives in the high half
     const bool negative = (hi & 0x8000000000000000ULL) != 0;
@@ -69,7 +69,7 @@ static PyObject *int128_from_halves(uint64_t hi, uint64_t lo)
     return neg;  // new ref or NULL
 }
 
-JITABI_INLINE unsigned long long decode_varuint32(const char *restrict p, size_t *consumed)
+JITABI_INLINE_ALWAYS unsigned long long decode_varuint32(const char *restrict p, size_t *consumed)
 {
     const unsigned char *s = (const unsigned char *)p;
     unsigned long long r = 0;
@@ -96,7 +96,7 @@ JITABI_INLINE unsigned long long decode_varuint32(const char *restrict p, size_t
     return r;
 }
 
-JITABI_INLINE long long decode_varint32(const char *restrict p, size_t *consumed)
+JITABI_INLINE_ALWAYS long long decode_varint32(const char *restrict p, size_t *consumed)
 {
     const unsigned char *s = (const unsigned char *)p;
     long long r = 0;
@@ -129,22 +129,22 @@ JITABI_INLINE long long decode_varint32(const char *restrict p, size_t *consumed
     return r;
 }
 
-JITABI_INLINE PyObject *unpack_bool (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_bool (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 1;  return PyBool_FromLong(b[0] != 0); }
 
-JITABI_INLINE PyObject *unpack_uint8 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_uint8 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 1;  return PyLong_FromUnsignedLong((unsigned char)b[0]); }
 
-JITABI_INLINE PyObject *unpack_uint16 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_uint16 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 2;  return PyLong_FromUnsignedLong(read_le16(b)); }
 
-JITABI_INLINE PyObject *unpack_uint32 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_uint32 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 4;  return PyLong_FromUnsignedLong(read_le32(b)); }
 
-JITABI_INLINE PyObject *unpack_uint64 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_uint64 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 8;  return PyLong_FromUnsignedLongLong(read_le64(b)); }
 
-JITABI_INLINE PyObject *
+JITABI_INLINE_ALWAYS PyObject *
 unpack_uint128(const char *b, size_t buf_len, size_t *c)
 {
     if (buf_len < 16) {
@@ -157,19 +157,19 @@ unpack_uint128(const char *b, size_t buf_len, size_t *c)
     return uint128_from_halves(hi, lo);
 }
 
-JITABI_INLINE PyObject *unpack_int8 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_int8 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 1;  return PyLong_FromLong((signed char)b[0]); }
 
-JITABI_INLINE PyObject *unpack_int16 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_int16 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 2;  return PyLong_FromLong((int16_t)read_le16(b)); }
 
-JITABI_INLINE PyObject *unpack_int32 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_int32 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 4;  return PyLong_FromLong((int32_t)read_le32(b)); }
 
-JITABI_INLINE PyObject *unpack_int64 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_int64 (const char *b, size_t buf_len, size_t *c)
 { if (c) *c = 8;  return PyLong_FromLongLong((int64_t)read_le64(b)); }
 
-JITABI_INLINE PyObject *
+JITABI_INLINE_ALWAYS PyObject *
 unpack_int128(const char *b, size_t buf_len, size_t *c)
 {
     if (buf_len < 16) {
@@ -182,19 +182,19 @@ unpack_int128(const char *b, size_t buf_len, size_t *c)
     return int128_from_halves(hi, lo);
 }
 
-JITABI_INLINE PyObject *unpack_varuint32 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_varuint32 (const char *b, size_t buf_len, size_t *c)
 {
     unsigned long long v = decode_varuint32(b, c);
     return PyLong_FromUnsignedLongLong(v);
 }
 
-JITABI_INLINE PyObject *unpack_varint32 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_varint32 (const char *b, size_t buf_len, size_t *c)
 {
     long long v = decode_varint32(b, c);
     return PyLong_FromLongLong(v);
 }
 
-JITABI_INLINE PyObject *unpack_float32 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_float32 (const char *b, size_t buf_len, size_t *c)
 {
     if (c) *c = 4;
     float f;
@@ -202,7 +202,7 @@ JITABI_INLINE PyObject *unpack_float32 (const char *b, size_t buf_len, size_t *c
     return PyFloat_FromDouble((double)f);
 }
 
-JITABI_INLINE PyObject *unpack_float64 (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_float64 (const char *b, size_t buf_len, size_t *c)
 {
     if (c) *c = 8;
     double d;
@@ -210,13 +210,13 @@ JITABI_INLINE PyObject *unpack_float64 (const char *b, size_t buf_len, size_t *c
     return PyFloat_FromDouble(d);
 }
 
-JITABI_INLINE PyObject *unpack_raw (const char *b, size_t len, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_raw (const char *b, size_t len, size_t buf_len, size_t *c)
 {
     if (c) *c = len;
     return PyBytes_FromStringAndSize(b, len);
 }
 
-JITABI_INLINE PyObject *unpack_bytes (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_bytes (const char *b, size_t buf_len, size_t *c)
 {
     size_t len_consumed = 0;
     unsigned long long l = decode_varuint32(b, &len_consumed);
@@ -234,7 +234,7 @@ JITABI_INLINE PyObject *unpack_bytes (const char *b, size_t buf_len, size_t *c)
     return PyBytes_FromStringAndSize(b + len_consumed, (Py_ssize_t)l);
 }
 
-JITABI_INLINE PyObject *unpack_string (const char *b, size_t buf_len, size_t *c)
+JITABI_INLINE_ALWAYS PyObject *unpack_string (const char *b, size_t buf_len, size_t *c)
 {
     size_t len_consumed = 0;
     unsigned long long l = decode_varuint32(b, &len_consumed);

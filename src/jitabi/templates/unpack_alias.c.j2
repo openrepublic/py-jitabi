@@ -1,5 +1,5 @@
-static inline PyObject *
-unpack_{{ alias }}(const char *__buf, size_t __buf_len, size_t *__consumed)
+JITABI_INLINE
+PyObject *unpack_{{ alias }}(const char *__buf, size_t __buf_len, size_t *__consumed)
 {
     return unpack_{{ call.type_name }}(
         __buf, {% for a in call.args %}{{ a }}, {% endfor %}__buf_len, __consumed

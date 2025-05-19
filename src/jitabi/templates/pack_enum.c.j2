@@ -1,6 +1,10 @@
-static inline ssize_t
-pack_{{ enum_name }}(PyObject *__obj, char *__out, size_t __out_len)
+JITABI_INLINE
+ssize_t pack_{{ enum_name }}(PyObject *__obj, char *__dst, size_t __dst_len)
 {
+    if (__dst_len < 1) {
+        PyErr_SetString(PyExc_ValueError, "output buffer too small");
+        return -1;
+    }
     // must be a dict with "type" key
     if (!PyDict_Check(__obj)) {
         PyErr_SetString(PyExc_TypeError, "expected dict for enum {{ enum_name }}");
@@ -21,8 +25,8 @@ pack_{{ enum_name }}(PyObject *__obj, char *__out, size_t __out_len)
     // variant dispatch
 {%- for v in variants %}
     if (strcmp(__type_str, "{{ v.name }}") == 0) {
-        __out[0] = (char){{ loop.index0 }};  // encode as ULEB128 assuming index < 0x80
-        __inner = pack_{{ v.name }}(__obj, __out + 1, __out_len - 1);
+        __dst[0] = (char){{ loop.index0 }};  // encode as ULEB128 assuming index < 0x80
+        __inner = pack_{{ v.name }}(__obj, __dst + 1, __dst_len - 1);
         if (__inner < 0) return -1;
         return 1 + __inner;
     }

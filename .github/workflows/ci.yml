@@ -22,6 +22,9 @@ jobs:
           - platform: windows-2022
             compiler: cl
 
+          - platform: windows-2022
+            compiler: clang
+
     timeout-minutes: 15
 
     steps:
@@ -29,12 +32,52 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Ensure clang is available (only if required)
+      - name: Maybe ensure clang is available
         if: runner.os == 'Linux' && matrix.compiler == 'clang'
         run: |
           sudo apt-get update -y && sudo apt-get install -y clang
           sudo ln -sf $(command -v clang)    /usr/local/bin/cc
           sudo ln -sf $(command -v clang++)  /usr/local/bin/c++
+
+      - name: Maybe initialise MSVC environment
+        if: runner.os == 'Windows' && matrix.compiler == 'clang'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Maybe install / activate clang-cl
+        if: runner.os == 'Windows' && matrix.compiler == 'clang'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          # Ensure LLVM present
+          $llvmDir = "${Env:ProgramFiles}\LLVM\bin"
+          if (-not (Test-Path "$llvmDir\clang-cl.exe")) {
+              Write-Host "clang-cl not found ⇒ installing LLVM via Chocolatey"
+              choco install llvm --version 18.1.8 --no-progress -y
+          } else {
+              Write-Host "Found existing clang-cl at $llvmDir"
+          }
+
+          # Create wrapper copies
+          if (-not (Test-Path "$llvmDir\cl.exe")) {
+              Copy-Item "$llvmDir\clang-cl.exe" "$llvmDir\cl.exe"
+          }
+          if (-not (Test-Path "$llvmDir\link.exe")) {
+              Copy-Item "$llvmDir\lld-link.exe" "$llvmDir\link.exe"
+          }
+
+          # Pre-pend its bin dir so cl.exe resolves to the LLVM stub
+          Add-Content -Path $Env:GITHUB_PATH -Value $llvmDir
+
+          # Tell distutils/setuptools to *use the PATH one*, not vswhere
+          Add-Content -Path $Env:GITHUB_ENV -Value "CC=clang-cl"
+          Add-Content -Path $Env:GITHUB_ENV -Value "DISTUTILS_USE_SDK=1"
+          Add-Content -Path $Env:GITHUB_ENV -Value "MSSdk=1"
+
+#      - name: clang-cl version check
+#        if: runner.os == 'Windows' && matrix.compiler == 'clang'
+#        shell: cmd
+#        run: cl.exe --version
 
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v5

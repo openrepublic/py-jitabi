@@ -1,5 +1,5 @@
-static inline ssize_t
-pack_{{ alias }}(PyObject *__obj, char *__out, size_t __out_len)
+JITABI_INLINE
+ssize_t pack_{{ alias }}(PyObject *__obj, char *__dst, size_t __dst_len)
 {
-    return pack_{{ call.type_name }}(__obj, {% for a in call.args %}{{ a }}, {% endfor %}__out, __out_len);
+    return pack_{{ call.type_name }}(__obj, {% for a in call.args %}{{ a }}, {% endfor %}__dst, __dst_len);
 }

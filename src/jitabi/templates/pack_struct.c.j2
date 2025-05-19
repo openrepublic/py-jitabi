@@ -3,14 +3,14 @@
 {%- macro pack_fn(call, indent_count=8) -%}
 pack_{{ call.type_name }}(
 {%- call m.indent(indent_count) %}
-    __field,
+    __field
     {%- for a in call.args %}
-    {{ a }},
-    {% endfor %}
-    __out + __offset,
-    __out_len - __offset
+    , {{ a }}
+    {%- endfor %}
+    , __dst + __offset
+    , __dst_len - __offset
 );
-{% endcall %}
+{% endcall -%}
 {%- endmacro -%}
 
 {%- macro pack_field(f) -%}
@@ -37,7 +37,7 @@ pack_{{ call.type_name }}(
         __offset += __consumed;
 
     {%- elif f.call.modifier.name == "OPTIONAL" %}
-        __out[__offset++] = (__field != Py_None);
+        __dst[__offset++] = (__field != Py_None);
         if (__field != Py_None) {
             __consumed = {{ pack_fn(f.call) }}
             if (__consumed < 0) return -1;
@@ -58,9 +58,9 @@ pack_{{ call.type_name }}(
         }
 
         __len = PyList_Size(__field);
-        __varint_len = encode_varuint32((unsigned long long)__len, (char *)&__len_buf);
-        if (__varint_len < 0 || (size_t)(__offset + __varint_len) > __out_len) return -1;
-        memcpy(__out + __offset, __len_buf, (size_t)__varint_len);
+        __varint_len = encode_varuint32((unsigned long long)__len, (char *)__len_buf);
+        if (__varint_len < 0 || (size_t)(__offset + __varint_len) > __dst_len) return -1;
+        memcpy(__dst + __offset, __len_buf, (size_t)__varint_len);
         __offset += __varint_len;
 
         __list = __field;
@@ -77,8 +77,8 @@ pack_{{ call.type_name }}(
     }
 {%- endmacro -%}
 
-static inline ssize_t
-pack_{{ fn_name }}(PyObject *__obj, char *__out, size_t __out_len)
+JITABI_INLINE
+ssize_t pack_{{ fn_name }}(PyObject *__obj, char *__dst, size_t __dst_len)
 {
 {% if fields|length > 0 %}
     ssize_t __offset = 0;
@@ -88,7 +88,7 @@ pack_{{ fn_name }}(PyObject *__obj, char *__out, size_t __out_len)
 
 {% if base %}
     // pack base first
-    __consumed = pack_{{ base }}(__obj, __out, __out_len);
+    __consumed = pack_{{ base }}(__obj, __dst, __dst_len);
     if (__consumed < 0) return -1;
     __offset += __consumed;
 
