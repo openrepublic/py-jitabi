@@ -15,6 +15,7 @@
     #include <BaseTsd.h>
     typedef SSIZE_T  ssize_t;
     #define JITABI_INLINE static __forceinline
+    #define restrict __restrict
 
 #else
     #define JITABI_INLINE static inline __attribute__((always_inline, hot))
