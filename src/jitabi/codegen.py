@@ -18,6 +18,7 @@ Code generation and compilation routines for ABI C modules.
 
 '''
 import sys as py_sys
+import time
 import json
 import logging
 import subprocess
@@ -31,6 +32,7 @@ from setuptools._distutils import (
 from jinja2 import Environment, FileSystemLoader
 
 from jitabi.json import ABIStruct
+from jitabi.cache import ModuleParams
 from jitabi.sanitize import (
     check_type,
     check_ident
@@ -301,30 +303,39 @@ def _compile_with_distutils(
     cc = ccompiler.new_compiler()
     sysconfig.customize_compiler(cc)
 
+    is_unix: bool = cc.compiler_type == 'unix'
+
     include_py = sysconfig.get_config_var('INCLUDEPY')
 
-    libs: list[str]  = []
-    library_dirs: list[str]  = []
-    extra: list[str] = []
+    # extra_postargs for cc.compile call
+    extra: list[str] = (
+        [
+            '-std=c99',
+            '-pedantic',
+            '-Wno-unused-function'
+        ]
+        if is_unix
+        else []
+    )
 
     specific_type = detect_compiler_type(
         Path(cc.compiler[0]).name
-        if cc.compiler_type == 'unix'
+        if is_unix
         else 'cl.exe'
     )
 
     if specific_type == 'gcc':
-        extra = ['-Wno-maybe-uninitialized']
+        extra += ['-Wno-maybe-uninitialized']
 
     elif specific_type == 'clang':
-        extra = [
-            '-Wno-sometimes-uninitialized',
-            '-Wno-unused-function'
-        ]
+        extra += ['-Wno-sometimes-uninitialized']
 
     elif specific_type == 'cl':
         # equivalent of -Wno-maybe-uninitialized
         extra = ['/wd4701']
+
+    libs: list[str]  = []
+    library_dirs: list[str]  = []
 
     if cc.compiler_type == 'msvc':
         # need to add -lpythonVERSION lib implicitly
@@ -352,12 +363,17 @@ def _compile_with_distutils(
     for define in defines:
         cc.define_macro(define)
 
+    logger.info(f'Compiling {src}...')
+    start_compile = time.time()
     objs = cc.compile(
         [str(src)],
         include_dirs=[include_py],
         extra_postargs=extra
     )
+    compile_elapsed = time.time() - start_compile
+    logger.info(f'Done compiling, took: {compile_elapsed:.2f}s')
 
+    start_link = time.time()
     ext = sysconfig.get_config_var('EXT_SUFFIX')
     target = build / f'{name}{ext}'
     cc.link_shared_object(
@@ -366,6 +382,9 @@ def _compile_with_distutils(
         libraries=libs,
         library_dirs=library_dirs,
     )
+    link_elapsed = time.time() - start_link
+    logger.info(f'Done linking, took: {link_elapsed:.2f}s')
+    logger.info(f'Total time: {compile_elapsed + link_elapsed:.2f}s')
     return target
 
 
@@ -374,9 +393,7 @@ def compile_module(
     name: str,
     source: str,
     build_path: Path | str,
-    debug: bool = False,
-    with_unpack: bool = True,
-    with_pack: bool = True
+    build_params: ModuleParams,
 ):
     '''
     Compile the generated C source into a shared object for import.
@@ -391,13 +408,21 @@ def compile_module(
     c_path.write_text(source)
 
     defs = []
-    if debug:
+    if build_params.debug:
         defs.append('__JITABI_DEBUG')
 
-    if with_unpack:
+    if build_params.inlined:
+        defs.append('__JITABI_INLINED')
+
+    if build_params.with_unpack:
         defs.append('__JITABI_UNPACK')
 
-    if with_pack:
+    if build_params.with_pack:
         defs.append('__JITABI_PACK')
 
     _compile_with_distutils(name, c_path, build_path, defines=defs)
+
+    # write build params to json file on build dir
+    (build_path / 'params.json').write_text(
+        json.dumps(build_params.as_dict(), indent=4)
+    )

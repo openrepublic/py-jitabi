@@ -30,13 +30,18 @@ artifacts stored in ``~/.jitabi`` (or the path you pass as *cache_path*).
 
 '''
 import logging
+import hashlib
 
 from types import ModuleType
 from pathlib import Path
 
 import jitabi.codegen as codegen
 
-from jitabi.cache import Cache
+from jitabi.cache import (
+    ModuleParams,
+    CacheKey,
+    Cache
+)
 from jitabi.protocol import (
     ABIView,
     hash_abi_view
@@ -50,6 +55,24 @@ if not detect_working_compiler():
 
 
 logger = logging.getLogger(__name__)
+
+
+def hash_abi_for_cache(
+    abi: ABIView,
+    params: ModuleParams,
+    *,
+    as_bytes: bool = False
+) -> str | bytes:
+    abi_hash = hash_abi_view(abi, as_bytes=True)
+
+    h = hashlib.sha256()
+    h.update(abi_hash)
+    h.update(params.as_bytes())
+
+    return (
+        h.digest() if as_bytes
+        else h.hexdigest()
+    )
 
 
 class JITContext:
@@ -75,127 +98,118 @@ class JITContext:
     def _inc_mod_name(self, name: str):
         self._versions[name] += 1
 
-    def c_source_from_abi(
+    def _c_source_from_abi(
         self,
-        name: str,
+        key: CacheKey,
         abi: ABIView,
         *,
-        use_cache: bool = True
-    ) -> tuple[str, str]:
+        use_cache: bool = True,
+    ) -> str:
         '''
-        Return ``(abi_hash, c_source)`` for *abi*, reusing cached source if
-        available.
+        Return ``c_source`` for *abi*, reusing cached source if available.
 
         '''
-        name = self._full_mod_name(name)
-
-        abi_hash = hash_abi_view(abi)
         if use_cache:
-            logger.debug(f'Looking up C source for {name} (hash {abi_hash})')
+            logger.debug(f'Looking up C source for {key})')
 
-            source = self._cache.get_abi_source((name, abi_hash))
+            source = self._cache.get_abi_source(key)
             if source is not None:
-                logger.debug(f'Found cached C source for {name} (hash {abi_hash})')
-                return abi_hash, source
+                logger.debug(f'Found cached C source for {key})')
+                return key, source
 
-        logger.debug(f'Generating new C source for {name} (hash {abi_hash})')
-        key = (name, abi_hash)
-        # nonce = self._cache.get_entry_nonce(key)
-        source = codegen.c_source_from_abi(name, abi_hash, abi)
+        logger.debug(f'Generating new C source for {key})')
+        source = codegen.c_source_from_abi(
+            key.mod_name,
+            key.src_hash,
+            abi
+        )
         self._cache.set_abi_source(key, source)
-        return abi_hash, source
+        return source
 
-    def compile_module(
+    def _compile_module(
         self,
-        mod_name: str,
-        src_hash: str,
+        key: CacheKey,
         source: str,
         *,
-        debug: bool = False,
-        with_unpack: bool = True,
-        with_pack: bool = True,
-        use_cache: bool = True
+        use_cache: bool = True,
     ) -> ModuleType:
         '''
         Ensure compiled extension for *(mod_name, src_hash)* exists and return
         it.
 
         '''
-        mod_name = self._full_mod_name(mod_name)
-
         logger.debug(
-            f'Requesting compiled module for {mod_name} (hash {src_hash})'
+            f'Requesting compiled module for {key})'
         )
         if use_cache:
-            module = self._cache.get_module((mod_name, src_hash))
+            module = self._cache.get_module(key)
             if module is not None:
                 logger.debug(
-                    f'Using cached compiled module for {mod_name} (hash {src_hash})'
+                    f'Using cached compiled module for {key})'
                 )
                 return module
 
         # not cached: compile now
-        logger.info(f'Compiling module {mod_name} (hash {src_hash})')
-        output_dir = self._cache.get_module_path((mod_name, src_hash))
+        logger.info(f'Compiling module {key})')
+        output_dir = self._cache.get_module_path(key)
         codegen.compile_module(
-            mod_name,
+            key.mod_name,
             source,
             output_dir,
-            debug=debug,
-            with_unpack=with_unpack,
-            with_pack=with_pack
+            key.params
         )
 
-        module = self._cache.get_module((mod_name, src_hash), reload=True)
+        module = self._cache.get_module(key, reload=True)
         if module is None:
             raise RuntimeError(
                 'Compilation succeeded but '
-                f'module could not be imported: {mod_name}'
+                f'module could not be imported: {key}'
             )
 
         return module
 
     def module_for_abi(
         self,
-        mod_name: str,
+        name: str,
         abi: ABIView,
         *,
-        debug: bool = False,
-        with_unpack: bool = True,
-        with_pack: bool = True,
-        use_cache: bool = True
+        use_cache: bool = True,
+        params: dict | ModuleParams = {}
     ) -> ModuleType:
         '''
         Return a compiled extension for *abi*, compiling it if necessary.
 
         '''
-        full_mod_name = self._full_mod_name(mod_name)
-        src_hash = hash_abi_view(abi)
-        logger.debug(f'Requesting module for {full_mod_name} (hash {src_hash})')
+        params: ModuleParams = ModuleParams.from_dict(params)
 
-        module = self._cache.get_module((full_mod_name, src_hash))
+        full_name = self._full_mod_name(name)
+        src_hash = hash_abi_for_cache(abi, params)
+        key = CacheKey(
+            mod_name=full_name,
+            src_hash=src_hash,
+            params=params
+        )
+        logger.debug(f'Requesting module for {key})')
+
+        module = self._cache.get_module(key)
         if use_cache:
             if module is not None:
                 logger.debug(
-                    f'Using cached module for {full_mod_name} (hash {src_hash})'
+                    f'Using cached module for {key})'
                 )
                 return module
 
         elif module:
-            self._inc_mod_name(mod_name)
+            # user requested no cache use & module already existed
+            # increment mod name to trigger full re-import
+            self._inc_mod_name(name)
 
-        _, source = self.c_source_from_abi(
-            mod_name,
-            abi,
+        source = self._c_source_from_abi(
+            key, abi,
             use_cache=use_cache
         )
 
-        return self.compile_module(
-            mod_name,
-            src_hash,
-            source,
-            debug=debug,
-            with_unpack=with_unpack,
-            with_pack=with_pack,
-            use_cache=use_cache
+        return self._compile_module(
+            key, source,
+            use_cache=use_cache,
         )

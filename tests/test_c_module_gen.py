@@ -112,13 +112,13 @@ def assert_dict_eq(a: dict, b: dict):
 
 def _test_with_module(
     std: ModuleType,
-    pack: bool
+    **kwargs
 ):
     # result
     unpacked_result = std.unpack_result(result_sample.raw)
     assert_dict_eq(unpacked_result, result_sample.actual)
 
-    if pack:
+    if 'with_pack' in kwargs:
         packed = std.pack_result(unpacked_result)
         assert packed == result_sample.raw
 
@@ -133,7 +133,7 @@ def _test_with_module(
     unpacked = std.unpack_signed_block(signed_block_sample.raw)
     assert_dict_eq(unpacked, signed_block_sample.actual)
 
-    if pack:
+    if 'with_pack' in kwargs:
         packed = std.pack_signed_block(unpacked)
 
         assert packed == signed_block_sample.raw
@@ -141,8 +141,7 @@ def _test_with_module(
 
 def _test_jit_module_for(
     abi: ABI,
-    with_pack: bool,
-    debug: bool = False
+    **kwargs
 ):
     jit = JITContext(cache_path='tests/.jitabi')
 
@@ -150,26 +149,21 @@ def _test_jit_module_for(
     standard = jit.module_for_abi(
         'standard',
         abi,
-        debug=debug,
-        with_pack=with_pack,
-        use_cache=False
+        use_cache=False,
+        params=kwargs
     )
-    _test_with_module(standard, pack=with_pack)
+    _test_with_module(standard, **kwargs)
 
     # cache
     standard = jit.module_for_abi('standard', abi)
-    _test_with_module(standard, pack=with_pack)
+    _test_with_module(standard, **kwargs)
 
 
 def test_std_abi():
     abi = ABI.from_file(ABI_DIR / 'std_abi.json')
 
-    start = time.time()
-    _test_jit_module_for(abi, with_pack=True)
-    elasped = time.time() - start
-    print(f'took {elasped:.2f} s to compile')
+    _test_jit_module_for(abi, inlined=False, with_pack=True)
 
-    start = time.time()
+    _test_jit_module_for(abi, with_pack=True)
+
     _test_jit_module_for(abi, with_pack=False)
-    elasped = time.time() - start
-    print(f'took {elasped:.2f} s to compile without pack fns')

@@ -176,7 +176,7 @@ class ABIView(Protocol):
         ...
 
 
-def hash_abi_view(abi: ABIView) -> str:
+def hash_abi_view(abi: ABIView, *, as_bytes: bool = False) -> str | bytes:
     '''
     Get a sha256 of the types definition
 
@@ -203,4 +203,7 @@ def hash_abi_view(abi: ABIView) -> str:
         h.update(a.new_type_name().encode())
         h.update(a.from_type_name().encode())
 
-    return h.hexdigest()
+    return (
+        h.digest() if as_bytes
+        else h.hexdigest()
+    )

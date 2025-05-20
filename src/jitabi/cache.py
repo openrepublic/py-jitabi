@@ -29,6 +29,7 @@ disk so that subsequent interpreter sessions can reuse them.
 '''
 from __future__ import annotations
 
+import json
 import logging
 import sysconfig
 import importlib
@@ -49,10 +50,6 @@ DEFAULT_CACHE_PATH = Path.home() / '.jitabi'
 EXT_SUFFIX = sysconfig.get_config_var('EXT_SUFFIX')
 
 
-# (module_name, source_hash)
-CacheKey = tuple[str, str]
-
-
 def import_module(
     mod_name: str,
     mod_path: Path,
@@ -69,6 +66,88 @@ def import_module(
     return module
 
 
+default_param_debug: bool = False
+default_param_inlined: bool = True
+default_param_with_pack: bool = True
+default_param_with_unpack: bool = True
+
+
+@dataclass(frozen=True)
+class ModuleParams:
+    debug: bool
+    inlined: bool
+    with_pack: bool
+    with_unpack: bool
+
+    def as_dict(self) -> dict:
+        return {
+            'debug': self.debug,
+            'inlined': self.inlined,
+            'with_pack': self.with_pack,
+            'with_unpack': self.with_unpack
+        }
+
+    def as_bytes(self) -> bytes:
+        return bytes([
+            int(self.debug),
+            int(self.inlined),
+            int(self.with_pack),
+            int(self.with_unpack)
+        ])
+
+    @staticmethod
+    def from_dict(d: dict) -> ModuleParams:
+        return ModuleParams(
+            debug=d.get('debug', default_param_debug),
+            inlined=d.get('inlined', default_param_inlined),
+            with_pack=d.get('with_pack', default_param_with_pack),
+            with_unpack=d.get('with_unpack', default_param_with_unpack),
+        )
+
+    @staticmethod
+    def default() -> ModuleParams:
+        return ModuleParams(
+            debug=default_param_debug,
+            inlined=default_param_inlined,
+            with_pack=default_param_with_pack,
+            with_unpack=default_param_with_unpack
+        )
+
+
+@dataclass(frozen=True)
+class CacheKey:
+    mod_name: str
+    src_hash: str
+    params: ModuleParams
+
+    def __str__(self) -> str:
+        s = f'{self.mod_name} (hash {self.src_hash}'
+
+        if (
+            self.params.debug or
+            self.params.inlined or
+            self.params.with_pack or
+            self.params.with_unpack
+        ):
+            s += ', with flags:'
+
+            if self.params.debug:
+                s += ' debug'
+
+            if self.params.inlined:
+                s += ' inlined'
+
+            if self.params.with_pack:
+                s += ' with_pack'
+
+            if self.params.with_unpack:
+                s += ' with_unpack'
+
+        s += ')'
+
+        return s
+
+
 @dataclass
 class CacheEntry:
     source: str | None
@@ -83,8 +162,6 @@ class CacheEntry:
 
 
 class Cache:
-
-    # In‑memory representation: [source (str|None), module (ModuleType|None)]
     _cache: dict[CacheKey, CacheEntry]
 
     def __init__(
@@ -114,7 +191,39 @@ class Cache:
                 if not src_hash_dir.is_dir():
                     continue
 
-                key: CacheKey = (mod_name, src_hash_dir.name)
+                src_hash = src_hash_dir.name
+
+                # load params
+                params_path = src_hash_dir / 'params.json'
+                if not params_path.is_file():
+                    logger.warning(
+                        f'Could not load params file for {mod_name} (hash {src_hash}),'
+                        ' skipping module cache...'
+                    )
+                    continue
+
+                params = json.loads(params_path.read_text())
+
+                if (
+                    'debug' not in params
+                    or
+                    'inlined' not in params
+                    or
+                    'with_pack' not in params
+                    or
+                    'with_unpack' not in params
+                ):
+                    logger.warning(
+                        f'Malformed params file for {mod_name} (hash {src_hash}), '
+                        ' skipping module cache...'
+                    )
+                    continue
+
+                key: CacheKey = CacheKey(
+                    mod_name=mod_name,
+                    src_hash=src_hash,
+                    params=ModuleParams(**params)
+                )
                 source: str | None = None
                 module: ModuleType | None = None
 
@@ -122,16 +231,24 @@ class Cache:
                 src_path = src_hash_dir / f'{mod_name}.c'
                 if src_path.is_file():
                     source = src_path.read_text()
-                    logger.debug(f'Loaded source for {mod_name} (hash {key[1]})')
+                    logger.debug(
+                        f'Loaded source for {str(key)})'
+                    )
 
                 # load compiled module if present
                 mod_path = src_hash_dir / f'{mod_name}{EXT_SUFFIX}'
                 if mod_path.is_file():
                     try:
                         module = import_module(mod_name, mod_path)
-                        logger.debug(f'Loaded compiled module for {mod_name} (hash {key[1]}')
-                    except Exception:  # pragma: no cover – ignore broken cache entries
-                        logger.exception(f'Failed to import cached module {mod_path}')
+                        logger.debug(
+                            f'Loaded compiled module for {str(key)})'
+                        )
+
+                    except Exception:
+                        logger.exception(
+                            f'Failed to import cached module {str(key)})'
+                        )
+                        continue
 
                 self._cache[key] = CacheEntry(
                     source=source,
@@ -143,7 +260,7 @@ class Cache:
         Return the directory where *key*'s artifacts are stored.
 
         '''
-        return self.fs_location / key[0] / key[1]
+        return self.fs_location / key.mod_name / key.src_hash
 
     def get_abi_source(self, key: CacheKey) -> str | None:
         '''
@@ -154,8 +271,7 @@ class Cache:
             logger.debug('Returning in‑memory source for %s', key)
             return self._cache[key].source
 
-        mod_name, _ = key
-        src_path = self.get_module_path(key) / f'{mod_name}.c'
+        src_path = self.get_module_path(key) / f'{key.mod_name}.c'
         if src_path.is_file():
             logger.debug(f'Reading source for {key} from {src_path}', key, src_path)
             source = src_path.read_text()
@@ -175,7 +291,7 @@ class Cache:
 
         src_dir = self.get_module_path(key)
         src_dir.mkdir(parents=True, exist_ok=True)
-        (src_dir / f'{key[0]}.c').write_text(source)
+        (src_dir / f'{key.mod_name}.c').write_text(source)
 
     def get_module(self, key: CacheKey, *, reload: bool = False) -> ModuleType | None:
         '''
@@ -187,14 +303,13 @@ class Cache:
                 logger.debug(f'Returning in‑memory module for {key}')
                 return self._cache[key].module
 
-        mod_name, _ = key
-        mod_path = self.get_module_path(key) / f'{mod_name}{EXT_SUFFIX}'
+        mod_path = self.get_module_path(key) / f'{key.mod_name}{EXT_SUFFIX}'
         if not mod_path.is_file():
             logger.warning(f'Compiled module not found on disk for {key}')
             return None
 
         try:
-            module = import_module(mod_name, mod_path)
+            module = import_module(key.mod_name, mod_path)
 
         except Exception:
             logger.exception(f'Failed to import module {mod_path}')

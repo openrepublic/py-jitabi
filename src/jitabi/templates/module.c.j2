@@ -13,22 +13,29 @@
 
 #ifdef _MSC_VER
 
-    #include <BaseTsd.h>
-    typedef SSIZE_T  ssize_t;
+#include <BaseTsd.h>
+typedef SSIZE_T  ssize_t;
 
-    #ifdef __clang__
-    #define JITABI_INLINE static inline __attribute__((hot))
-    #define JITABI_INLINE_ALWAYS static inline __attribute__((always_inline, hot))
+#endif
+
+#ifdef __JITABI_INLINED
+
+    #if defined(_MSC_VER) && !defined(__clang__)
+
+        #define JITABI_INLINE static __inline
+        #define JITABI_INLINE_ALWAYS static __forceinline
+
     #else
-    #define JITABI_INLINE static __inline
-    #define JITABI_INLINE_ALWAYS static __forceinline
-    #define restrict __restrict
+
+        #define JITABI_INLINE static inline __attribute__((hot))
+        #define JITABI_INLINE_ALWAYS static inline __attribute__((always_inline, hot))
+
     #endif
 
 #else
 
-    #define JITABI_INLINE static inline __attribute__((hot))
-    #define JITABI_INLINE_ALWAYS static inline __attribute__((always_inline, hot))
+#define JITABI_INLINE static
+#define JITABI_INLINE_ALWAYS static
 
 #endif
 
