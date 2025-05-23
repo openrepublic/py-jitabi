@@ -25,5 +25,8 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "deepdiff>=8.5.0",
+    "hypothesis>=6.131.20",
+    "pdbp>=1.7.0",
     "pytest>=8.3.5",
+    "pytest-xdist>=3.6.1",
 ]

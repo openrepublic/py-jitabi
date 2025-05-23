@@ -29,6 +29,12 @@ first call for a given *(module_name, abi_hash)* pair; subsequent calls reuse
 artifacts stored in ``~/.jitabi`` (or the path you pass as *cache_path*).
 
 '''
+try:
+    import pdbp
+
+except ImportError:
+    ...
+
 import logging
 import hashlib
 
@@ -42,6 +48,7 @@ from jitabi.cache import (
     CacheKey,
     Cache
 )
+from jitabi.compiler import compile_module
 from jitabi.protocol import (
     ABIView,
     hash_abi_view
@@ -66,6 +73,7 @@ def hash_abi_for_cache(
     abi_hash = hash_abi_view(abi, as_bytes=True)
 
     h = hashlib.sha256()
+    h.update(codegen.hash_pipeline(as_bytes=True))
     h.update(abi_hash)
     h.update(params.as_bytes())
 
@@ -83,9 +91,11 @@ class JITContext:
 
     def __init__(
         self,
-        cache_path: Path | str | None = None
+        cache_path: Path | str | None = None,
+        readonly: bool = False
     ):
         self._cache = Cache(fs_location=cache_path)
+        self._readonly = readonly
         logger.info(
             f'Initialized JITContext with cache at {self._cache.fs_location}'
         )
@@ -98,24 +108,28 @@ class JITContext:
     def _inc_mod_name(self, name: str):
         self._versions[name] += 1
 
-    def _c_source_from_abi(
+    def _source_from_abi(
         self,
         key: CacheKey,
         abi: ABIView,
+        abi_location: Path,
         *,
-        use_cache: bool = True,
+        force_reload: bool = False,
     ) -> str:
         '''
-        Return ``c_source`` for *abi*, reusing cached source if available.
+        Return ``(c_source, pytest_source)`` for *abi*, reusing cached source if available.
 
         '''
-        if use_cache:
-            logger.debug(f'Looking up C source for {key})')
+        if not force_reload:
+            logger.debug(f'Looking up sources for {key})')
 
-            source = self._cache.get_abi_source(key)
+            source = self._cache.get_abi_source(key, force_reload=force_reload)
             if source is not None:
                 logger.debug(f'Found cached C source for {key})')
-                return key, source
+                return source
+
+        if self.is_readonly:
+            raise RuntimeError('Source not found and in read only context!')
 
         logger.debug(f'Generating new C source for {key})')
         source = codegen.c_source_from_abi(
@@ -123,6 +137,7 @@ class JITContext:
             key.src_hash,
             abi
         )
+
         self._cache.set_abi_source(key, source)
         return source
 
@@ -131,7 +146,7 @@ class JITContext:
         key: CacheKey,
         source: str,
         *,
-        use_cache: bool = True,
+        force_reload: bool = False,
     ) -> ModuleType:
         '''
         Ensure compiled extension for *(mod_name, src_hash)* exists and return
@@ -141,25 +156,28 @@ class JITContext:
         logger.debug(
             f'Requesting compiled module for {key})'
         )
-        if use_cache:
-            module = self._cache.get_module(key)
+        module = self._cache.get_module(key, force_reload=force_reload)
+        if not force_reload:
             if module is not None:
                 logger.debug(
                     f'Using cached compiled module for {key})'
                 )
                 return module
 
+        if self.is_readonly:
+            raise RuntimeError('Module not found and in read only context!')
+
         # not cached: compile now
         logger.info(f'Compiling module {key})')
         output_dir = self._cache.get_module_path(key)
-        codegen.compile_module(
+        compile_module(
             key.mod_name,
             source,
             output_dir,
             key.params
         )
 
-        module = self._cache.get_module(key, reload=True)
+        module = self._cache.get_module(key, force_reload=True)
         if module is None:
             raise RuntimeError(
                 'Compilation succeeded but '
@@ -168,14 +186,21 @@ class JITContext:
 
         return module
 
+    @property
+    def is_readonly(self) -> bool:
+        return self._readonly
+
+    def module_dir_for(self, key: CacheKey) -> Path:
+        return self._cache.get_module_path(key)
+
     def module_for_abi(
         self,
         name: str,
         abi: ABIView,
         *,
-        use_cache: bool = True,
+        force_reload: bool = False,
         params: dict | ModuleParams = {}
-    ) -> ModuleType:
+    ) -> tuple[CacheKey, ModuleType]:
         '''
         Return a compiled extension for *abi*, compiling it if necessary.
 
@@ -191,25 +216,37 @@ class JITContext:
         )
         logger.debug(f'Requesting module for {key})')
 
-        module = self._cache.get_module(key)
-        if use_cache:
+        module = self._cache.get_module(key, force_reload=force_reload)
+        if not force_reload:
             if module is not None:
                 logger.debug(
                     f'Using cached module for {key})'
                 )
-                return module
+                return key, module
 
         elif module:
-            # user requested no cache use & module already existed
+            if self.is_readonly:
+                raise RuntimeError('Module not cached and in read only context!')
+
+            # user requested disk reload & module already existed
             # increment mod name to trigger full re-import
             self._inc_mod_name(name)
 
-        source = self._c_source_from_abi(
-            key, abi,
-            use_cache=use_cache
+        # store actual ABIView as file
+        mod_dir = self.module_dir_for(key)
+        mod_dir.mkdir(parents=True, exist_ok=True)
+        abi_location = mod_dir / f'{name}.{abi.filetype}'
+        abi_location.write_text(abi.as_str())
+
+        source = self._source_from_abi(
+            key, abi, abi_location,
+            force_reload=force_reload
         )
 
-        return self._compile_module(
-            key, source,
-            use_cache=use_cache,
+        return (
+            key,
+            self._compile_module(
+                key, source,
+                force_reload=force_reload,
+            )
         )

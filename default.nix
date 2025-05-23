@@ -1,4 +1,5 @@
 { pkgs ? import <nixpkgs> {} }:
+
 let
   nativeBuildInputs = with pkgs; [
     psmisc
@@ -7,8 +8,8 @@ let
     stdenv.cc.cc.lib
     uv
   ];
-
 in
+
 pkgs.mkShell {
   inherit nativeBuildInputs;
 

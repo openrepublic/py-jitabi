@@ -5,8 +5,10 @@ build/
 dist/
 wheels/
 *.egg-info
+.hypothesis
 
 # Virtual environments
 .venv
 
 **/.jitabi
+**/.pytest-jitabi

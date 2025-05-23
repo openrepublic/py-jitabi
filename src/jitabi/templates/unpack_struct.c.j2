@@ -1,7 +1,7 @@
 {%- import "macros.c.j2" as m -%}
 
 {%- macro unpack_fn(call, indent_count=4) -%}
-unpack_{{ call.type_name }}(
+unpack_{{ call.resolved_name }}(
 {%- call m.indent(indent_count) %}
     b + __total,
     {%- for a in call.args %}
@@ -47,7 +47,17 @@ unpack_{{ call.type_name }}(
 
     {%- elif f.call.modifier.name == "EXTENSION" -%}
 
-    if (__total < buf_len) {
+    #ifdef __JITABI_DEBUG
+        JITABI_LOG_DEBUG(
+            "pre extension buf_len: %lu, total: %lu delta: %lu",
+            buf_len,
+            __total,
+            __total - __start_total
+        );
+        __start_total = __total;
+    #endif
+
+    if (buf_len - 1 > __total) {
         ____{{ f.name }} = {{ unpack_fn(f.call, indent_count=8) }}
         if (!____{{ f.name }}) goto error;
         __total += __consumed;
@@ -55,6 +65,16 @@ unpack_{{ call.type_name }}(
         Py_INCREF(Py_None);
         ____{{ f.name }} = Py_None;
     }
+
+    #ifdef __JITABI_DEBUG
+        JITABI_LOG_DEBUG(
+            "post extension buf_len: %lu, total: %lu delta: %lu",
+            buf_len,
+            __total,
+            __total - __start_total
+        );
+        __start_total = __total;
+    #endif
 
     {%- elif f.call.modifier.name == "ARRAY" -%}
 
@@ -77,13 +97,12 @@ unpack_{{ call.type_name }}(
         /* unreachable */
     {%- endif %}
 
-    #ifdef __JITABI_DEBUG
-        JITABI_LOG_DEBUG(
-            "{{ f.name }} start: %lu, size: %lu",
-            __start_total,
-            __total - __start_total
-        );
-    #endif
+    JITABI_LOG_DEBUG(
+        "{{ f.name }} start: %lu, size: %lu, total: %lu",
+        __start_total,
+        __total - __start_total,
+        __total
+    );
 {%- endmacro -%}
 
 JITABI_INLINE
@@ -98,10 +117,10 @@ PyObject *unpack_{{ fn_name }}(const char *b, size_t buf_len, size_t *c)
 
     JITABI_LOG_DEBUG(
         {%- if base -%}
-        "struct {{ fn_name }} with base {{ base }}"
+        "UNPACK struct {{ fn_name }} with base {{ base }}, buf_len: %lu",
         {%- else -%}
-        "struct {{ fn_name }}:"
-        {%- endif -%}
+        "UNPACK struct {{ fn_name }}, buf_len: %lu",
+        {%- endif %} buf_len
     );
 
 {% if base %}

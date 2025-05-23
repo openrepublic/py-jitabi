@@ -6,25 +6,25 @@
 
 ---
 
-## ✨ Highlights
+## Highlights
 
 | | |
 |---|---|
-| 🚀 **Native speed** | ABI definitions are rendered into C with [Jinja 2] templates and compiled on-the-fly with your system compiler (GCC or Clang). |
-| 🧩 **Pluggable front-end** | Ship your own `ABIView` implementation – JSON, YAML, SQL, anything – and jitabi will happily consume it. |
-| 💾 **Smart on-disk cache** | Generated C source and shared objects are kept under `~/.jitabi/` (or a path you choose) so subsequent runs are instant. |
-| 🐍 **Pure-Python API** | No extra build steps – import, call, profit. |
+| **Native speed** | ABI definitions are rendered into C with [Jinja 2] templates and compiled on-the-fly with your system compiler (GCC or Clang). |
+| **Pluggable front-end** | Ship your own `ABIView` implementation – JSON, YAML, SQL, anything – and jitabi will happily consume it. |
+| **Smart on-disk cache** | Generated C source and shared objects are kept under `~/.jitabi/` (or a path you choose) so subsequent runs are instant. |
+| **Pure-Python API** | No extra build steps – import, call, profit. |
 
 ---
 
-## ⚙️ Requirements
+## Requirements
 
 * **Python ≥ 3.10**
 * **C99-compatible compiler**: GCC ≥ 9, Clang ≥ 10, MSVC ≥ 19.28 (VS 2019+)
 
 ---
 
-## 📦 Installation
+## Installation
 
 Clone the repository and install in editable mode:
 
@@ -36,16 +36,16 @@ pip install -e .
 
 ---
 
-## 🚀 Quick start
+## Quick start
 
 ```python
 from jitabi import JITContext
 from jitabi.json import ABI
 
-# 1️⃣  Load an ABI – any object implementing jitabi.protocol.ABIView works
+# Load an ABI – any object implementing jitabi.protocol.ABIView works
 abi = ABI.from_file("std_abi.json")
 
-# 2️⃣  Ask the JIT for a module (cached under ~/.jitabi)
+# Ask the JIT for a module (cached under ~/.jitabi)
 jit = JITContext()
 std = jit.module_for_abi("standard", abi, debug=False, with_pack=True)
 
@@ -71,7 +71,7 @@ Generated C files contain calls such as `logger.debug("struct block_position unp
 
 ---
 
-## 🗂 Project layout (TL;DR)
+## Project layout (TL;DR)
 
 ```
 jitabi/
@@ -85,7 +85,7 @@ jitabi/
 
 ---
 
-## 🧪 Testing
+## Testing
 
 The test-suite uses [pytest] + [DeepDiff].  Create an isolated env with [uv] and run:
 
@@ -99,7 +99,7 @@ Continuous-integration workflows for Ubuntu and macOS live in `.github/workflows
 
 ---
 
-## 📜 License
+## License
 
 **GNU AGPL v3 or later** – see `LICENSE` for details.
 

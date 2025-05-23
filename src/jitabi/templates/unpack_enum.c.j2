@@ -3,7 +3,7 @@ PyObject *unpack_{{ enum_name }}(const char *b, size_t buf_len, size_t *c)
 {
     // decode variant index (ULEB128)
     size_t __local = 0;
-    uint64_t idx = decode_varuint32(b, &__local);
+    unsigned long long idx = decode_varuint32(b, &__local);
     if (idx >= {{ variants|length }}) {
         PyErr_SetString(PyExc_ValueError,
                         "enum variant index out of range");

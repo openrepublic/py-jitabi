@@ -121,12 +121,17 @@ pack_uint128(PyObject *obj, char *out, size_t out_len)
     }
 
     /* low 64 bits  */
-    PyObject *lo_obj = PyNumber_And(
-        obj, PyLong_FromUnsignedLongLong(0xFFFFFFFFFFFFFFFFULL));
+    PyObject *mask_lo = PyLong_FromUnsignedLongLong(0xFFFFFFFFFFFFFFFFULL);
+    if (!mask_lo) return -1;
+    PyObject *lo_obj  = PyNumber_And(obj, mask_lo);
+    Py_DECREF(mask_lo);
     if (!lo_obj) return -1;
 
     /* high 64 bits */
-    PyObject *hi_obj = PyNumber_Rshift(obj, PyLong_FromLong(64));
+    PyObject *shift_amt = PyLong_FromLong(64);
+    if (!shift_amt) { Py_DECREF(lo_obj); return -1; }
+    PyObject *hi_obj    = PyNumber_Rshift(obj, shift_amt);
+    Py_DECREF(shift_amt);
     if (!hi_obj) { Py_DECREF(lo_obj); return -1; }
 
     uint64_t lo = PyLong_AsUnsignedLongLong(lo_obj);
@@ -213,11 +218,17 @@ pack_int128(PyObject *obj, char *out, size_t out_len)
         return -1;
     }
 
-    const int sign = PyObject_RichCompareBool(obj, PyLong_FromLong(0), Py_LT);
-    if (sign < 0) return -1;                      /* error */
+    PyObject *zero = PyLong_FromLong(0);
+    if (!zero) return -1;
+    const int sign = PyObject_RichCompareBool(obj, zero, Py_LT);
+    Py_DECREF(zero);
+    if (sign < 0) return -1;
 
-    PyObject *abs_obj = sign ? PyNumber_Negative(obj) : obj;
-    Py_INCREF(abs_obj);
+    PyObject *abs_obj = sign
+        ? PyNumber_Negative(obj)
+        : obj;
+    if (!abs_obj) return -1;
+    /* now we own one ref in both cases */
 
     /* magnitude halves                                                  */
     PyObject *lo_obj = PyNumber_And(

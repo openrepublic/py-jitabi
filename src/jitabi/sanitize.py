@@ -20,18 +20,26 @@ can happen.
 '''
 import re
 
+from jitabi.protocol import is_raw_type
+
+
 _ID_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 _TYPE_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*)(\[\]|\?|\$)?$')
 
 
-def check_ident(name: str, what: str):
+def check_ident(name: str, what: str, allow_raw: bool = False):
     '''
     Make sure `name` is a safe C identifier or raise ValueError.
     `what` is used for a helpful error message.
 
     '''
-    if not _ID_RE.match(name):
-        raise ValueError(f'{what} "{name}" is not a valid C identifier')
+    if _ID_RE.match(name):
+        return
+
+    if allow_raw and is_raw_type(name):
+        return
+
+    raise ValueError(f'{what} "{name}" is not a valid C identifier')
 
 
 def check_type(type_name: str):

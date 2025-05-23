@@ -150,13 +150,13 @@ class CacheKey:
 
 @dataclass
 class CacheEntry:
-    source: str | None
+    source: str
     module: ModuleType | None
 
     @staticmethod
-    def default() -> CacheEntry:
+    def from_source(source: str) -> CacheEntry:
         return CacheEntry(
-            source=None,
+            source=source,
             module=None
         )
 
@@ -169,7 +169,7 @@ class Cache:
         fs_location: Path | str | None = None
     ):
         self.fs_location = (
-            Path(fs_location).resolve() if fs_location else DEFAULT_CACHE_PATH
+            Path(fs_location) if fs_location else DEFAULT_CACHE_PATH
         )
         self.fs_location.mkdir(parents=True, exist_ok=True)
         logger.info(f'Using cache directory {self.fs_location}')
@@ -224,7 +224,6 @@ class Cache:
                     src_hash=src_hash,
                     params=ModuleParams(**params)
                 )
-                source: str | None = None
                 module: ModuleType | None = None
 
                 # load C source if present
@@ -234,6 +233,12 @@ class Cache:
                     logger.debug(
                         f'Loaded source for {str(key)})'
                     )
+
+                else:
+                    logger.warning(
+                        f'Source not found for {key}, skipping load...'
+                    )
+                    continue
 
                 # load compiled module if present
                 mod_path = src_hash_dir / f'{mod_name}{EXT_SUFFIX}'
@@ -262,46 +267,65 @@ class Cache:
         '''
         return self.fs_location / key.mod_name / key.src_hash
 
-    def get_abi_source(self, key: CacheKey) -> str | None:
+    def get_abi_source(
+        self,
+        key: CacheKey,
+        force_reload: bool = False
+    ) -> str | None:
         '''
-        Return cached C source for *key* or *None* if missing.
+        Return cached source for *key* or *None* if missing.
 
         '''
-        if key in self._cache and self._cache[key].source:
-            logger.debug('Returning in‑memory source for %s', key)
+        if not force_reload and key in self._cache:
+            logger.debug(f'Returning in‑memory source for {key}')
             return self._cache[key].source
 
-        src_path = self.get_module_path(key) / f'{key.mod_name}.c'
+        module_path = self.get_module_path(key)
+
+        src_path = module_path / f'{key.mod_name}.c'
         if src_path.is_file():
-            logger.debug(f'Reading source for {key} from {src_path}', key, src_path)
+            logger.debug(f'Reading C source for {key} from {src_path}')
             source = src_path.read_text()
-            self._cache.setdefault(key, CacheEntry.default()).source = source
+            self._cache.setdefault(key, CacheEntry.from_source(source)).source = source
+
             return source
 
-        logger.debug(f'Source for {key} not found')
         return None
 
-    def set_abi_source(self, key: CacheKey, source: str) -> None:
+    def set_abi_source(
+        self,
+        key: CacheKey,
+        source: str,
+    ) -> None:
         '''
         Write *source* to disk and cache it in‑memory.
 
         '''
-        logger.debug(f'Storing source for {key}')
-        self._cache.setdefault(key, CacheEntry.default()).source = source
+        logger.debug(f'Storing sources for {key}')
+        self._cache.setdefault(key, CacheEntry.from_source(source)).source = source
 
         src_dir = self.get_module_path(key)
         src_dir.mkdir(parents=True, exist_ok=True)
         (src_dir / f'{key.mod_name}.c').write_text(source)
 
-    def get_module(self, key: CacheKey, *, reload: bool = False) -> ModuleType | None:
+    def get_module(
+        self,
+        key: CacheKey,
+        *,
+        force_reload: bool = False
+    ) -> ModuleType | None:
         '''
         Return compiled module for *key* or *None* if not available.
 
         '''
-        if not reload:
-            if key in self._cache and self._cache[key].module:
+        entry = self._cache.get(key, None)
+        if not entry:
+            return None
+
+        if not force_reload:
+            if entry.module:
                 logger.debug(f'Returning in‑memory module for {key}')
-                return self._cache[key].module
+                return entry.module
 
         mod_path = self.get_module_path(key) / f'{key.mod_name}{EXT_SUFFIX}'
         if not mod_path.is_file():
@@ -315,5 +339,5 @@ class Cache:
             logger.exception(f'Failed to import module {mod_path}')
             return None
 
-        self._cache.setdefault(key, CacheEntry.default()).module = module
+        self._cache.setdefault(key, CacheEntry.from_source(entry.source)).module = module
         return module

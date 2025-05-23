@@ -390,6 +390,10 @@ JITABI_INLINE ssize_t pack_{{ a.alias }}(PyObject *object, char *destination, si
             cap *= 2;                                                      \
             if (_PyBytes_Resize(&bytes, cap) < 0) {                        \
                 Py_DECREF(bytes);                                          \
+                PyErr_SetString(                                           \
+                    PyExc_RuntimeError,                                    \
+                    "failed to resize buffer"                              \
+                );                                                         \
                 return NULL;                                               \
             }                                                              \
         }                                                                  \

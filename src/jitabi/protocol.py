@@ -13,10 +13,22 @@
 
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from __future__ import annotations
+
+import re
+import random
 import hashlib
 
 from enum import Enum
 from typing import Protocol, runtime_checkable
+from dataclasses import dataclass
+
+
+# input/output types, these are valid inputs for pack_* & valid outputs for
+# unpack_*
+IOTypes = (
+    bool | int | float | bytes | str | list | dict
+)
 
 
 # base types which module.c.j2 already has serialization functions for
@@ -39,6 +51,29 @@ STD_TYPES = [
     'bytes',
     'string',
 ]
+
+_RAW_TYPE_RE = re.compile(r'^raw\(\d+\)$')
+
+def is_raw_type(name: str) -> bool:
+    return name == 'raw' or _RAW_TYPE_RE.match(name)
+
+
+def extract_type_params(name: str) -> list[str]:
+    params_start = name.find('(') + 1
+    params_end = name.rfind(')')
+
+    if params_end <= params_start:
+        raise TypeError(f'Can not extract any params from {name}')
+
+    return (
+        name[params_start:params_end]
+            .replace(' ', '')
+            .split(',')
+    )
+
+
+def is_std_type(name: str) -> bool:
+    return name in STD_TYPES
 
 
 # extra structs added to all abi modules
@@ -164,8 +199,19 @@ class StructDef(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class ABIResolvedType:
+    original_name: str
+    resolved_name: str
+    args: list[str]
+    is_std: bool
+    modifier: TypeModifier
+
+
 @runtime_checkable
 class ABIView(Protocol):
+    filetype: str
+
     def aliases(self) -> list[AliasDef]:
         ...
 
@@ -175,6 +221,44 @@ class ABIView(Protocol):
     def structs(self) -> list[StructDef]:
         ...
 
+    def valid_types(self) -> set[str]:
+        ...
+
+    def is_valid_type(self, name: str) -> bool:
+        ...
+
+    def is_enum_type(self, name: str) -> bool:
+        ...
+
+    def is_struct_type(self, name: str) -> bool:
+        ...
+
+    def maybe_resolve_alias(self, name: str) -> str | None:
+        ...
+
+    def resolve_type(self, name: str) -> ABIResolvedType:
+        ...
+
+    def random_of(
+        self,
+        name: str,
+        max_list_size: int = 4,
+        chance_of_none: float = 0.5,
+        chance_delta: float = 0.5,
+        rng: random.Random | None = None
+    ) -> IOTypes:
+        ...
+
+    @staticmethod
+    def from_str(s: str) -> ABIView:
+        ...
+
+    def as_str(self) -> str:
+        ...
+
+
+# generic ABIView helpers
+
 
 def hash_abi_view(abi: ABIView, *, as_bytes: bool = False) -> str | bytes:
     '''
@@ -182,8 +266,6 @@ def hash_abi_view(abi: ABIView, *, as_bytes: bool = False) -> str | bytes:
 
     '''
     h = hashlib.sha256()
-
-    h.update(DEFAULT_HASH)
 
     h.update(b'structs')
     for s in abi.structs():
@@ -207,3 +289,16 @@ def hash_abi_view(abi: ABIView, *, as_bytes: bool = False) -> str | bytes:
         h.digest() if as_bytes
         else h.hexdigest()
     )
+
+
+def maybe_extract_type_mods(name: str) -> tuple[str, TypeModifier]:
+    if name.endswith('[]'):  # array
+        return name[:-2], TypeModifier.ARRAY
+
+    if name[-1] == '?':
+        return name[:-1], TypeModifier.OPTIONAL
+
+    elif name[-1] == '$':
+        return name[:-1], TypeModifier.EXTENSION
+
+    return name, TypeModifier.NONE

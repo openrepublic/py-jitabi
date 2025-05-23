@@ -1,7 +1,7 @@
 {%- import "macros.c.j2" as m -%}
 
 {%- macro pack_fn(call, indent_count=8) -%}
-pack_{{ call.type_name }}(
+pack_{{ call.resolved_name }}(
 {%- call m.indent(indent_count) %}
     __field
     {%- for a in call.args %}
@@ -37,15 +37,21 @@ pack_{{ call.type_name }}(
         __offset += __consumed;
 
     {%- elif f.call.modifier.name == "OPTIONAL" %}
-        __dst[__offset++] = (__field != Py_None);
-        if (__field != Py_None) {
+        __dst[__offset++] = (char)(__field != Py_None);
+
+        #ifdef __JITABI_DEBUG
+            JITABI_LOG_DEBUG(
+                "optional offset: %lu", __offset
+            );
+        #endif
+        if (__field != Py_None && __field != NULL) {
             __consumed = {{ pack_fn(f.call) }}
             if (__consumed < 0) return -1;
             __offset += __consumed;
         }
 
     {%- elif f.call.modifier.name == "EXTENSION" %}
-        if (__field != Py_None) {
+        if (__field != Py_None && __field != NULL) {
             __consumed = {{ pack_fn(f.call) }}
             if (__consumed < 0) return -1;
             __offset += __consumed;
@@ -74,6 +80,7 @@ pack_{{ call.type_name }}(
     {%- else %}
         #error "Unknown modifier in pack_struct"
     {% endif %}
+        JITABI_LOG_DEBUG("{{ f.name }} packed, offset: %lu", __offset);
     }
 {%- endmacro -%}
 
@@ -84,7 +91,13 @@ ssize_t pack_{{ fn_name }}(PyObject *__obj, char *__dst, size_t __dst_len)
     ssize_t __offset = 0;
     ssize_t __consumed = 0;
 
-    JITABI_LOG_DEBUG("struct {{ fn_name }} pack:");
+    JITABI_LOG_DEBUG(
+        {%- if base -%}
+        "PACK struct {{ fn_name }} with base {{ base }}"
+        {%- else -%}
+        "PACK struct {{ fn_name }}:"
+        {%- endif -%}
+    );
 
 {% if base %}
     // pack base first

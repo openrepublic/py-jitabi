@@ -1,23 +1,38 @@
+from __future__ import annotations
+
 import os
 import json
 import sysconfig
 import subprocess
+
 from shutil import which
+
+
+def normalize_dict(d: dict) -> dict:
+    return json.loads(
+        json.dumps(d, sort_keys=True, cls=JSONHexEncoder)
+    )
 
 
 class JSONHexEncoder(json.JSONEncoder):
     def default(self, obj):
         # hex string on bytes
         if isinstance(obj, (bytes, bytearray)):
-            return obj.hex()
+            return f'bytes({obj.hex()})'
 
-        return super().default(obj)
+        if isinstance(obj, type):
+            return str(obj)
+
+        try:
+            return super().default(obj)
+
+        except Exception as e:
+            return f'Unknown!: {e}'
 
 
 def detect_working_compiler() -> str | None:
     '''
-    Return the *command* of a C compiler that both exists in PATH **and**
-    answers to “--version”.  
+    Find if any of the supported compilers is on PATH
     Returns ``None`` if nothing usable is found.
 
     '''
@@ -44,15 +59,32 @@ def detect_working_compiler() -> str | None:
 
         # Is the binary on PATH?
         exe = which(cmd)
-        if not exe:
+        if exe:
+            return exe
+
+    return None
+
+
+def detect_compiler_type(cmd: str) -> str | None:
+    '''
+    Runs `cmd --version` (or `cmd -v`) and heuristically looks for
+    'clang' or 'gcc' in the output.
+
+    '''
+    for args in ([cmd], [cmd, '--version'], [cmd, '-v']):
+        try:
+            out = subprocess.check_output(args, stderr=subprocess.STDOUT, text=True)
+        except subprocess.CalledProcessError as e:
+            out = e.output
+
+        except FileNotFoundError:
             continue
 
-        # Does it appear to work?
-        try:
-            subprocess.run([exe, '--version'],
-                           capture_output=True, check=False, timeout=3)
-            return exe          # good enough
-        except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
-            pass
-
+        lower = out.lower()
+        if 'clang' in lower:
+            return 'clang'
+        if 'gcc' in lower or 'free software foundation' in lower:
+            return 'gcc'
+        if 'microsoft' in lower:
+            return 'cl'
     return None

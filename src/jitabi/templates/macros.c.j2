@@ -4,22 +4,11 @@
 
 
 {% macro debug_field(field) %}
-    // -------- field "{{ field.name }}":
-        {%- if field.call.modifier.name != "NONE" %} {{ field.call.modifier.name.lower() }}
-        {%- endif %} "{{ field.call.type_name }}" --------
+    // -------- field "{{ field.name }}": "{{ field.call.original_name }}" --------
 
     JITABI_LOG_DEBUG(
-        "%s: %s%s",
+        "%s: %s",
         "{{ field.name }}",
-        "{{ field.call.type_name }}",
-        {%- if field.call.modifier.name == "OPTIONAL" %}
-        "?"
-        {%- elif field.call.modifier.name == "EXTENSION" %}
-        "$"
-        {%- elif field.call.modifier.name == "ARRAY" %}
-        "[]"
-        {%- else %}
-        ""
-        {%- endif %}
+        "{{ field.call.original_name }}"
     );
 {%- endmacro %}
