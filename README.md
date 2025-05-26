@@ -40,10 +40,10 @@ pip install -e .
 
 ```python
 from jitabi import JITContext
-from jitabi.json import ABI
+from jitabi.protocol import ABIView
 
 # Load an ABI – any object implementing jitabi.protocol.ABIView works
-abi = ABI.from_file("std_abi.json")
+abi = ABIView.from_file("std_abi.json")
 
 # Ask the JIT for a module (cached under ~/.jitabi)
 jit = JITContext()
