@@ -13,8 +13,7 @@ pack_{{ call.resolved_name }}(
 {% endcall -%}
 {%- endmacro -%}
 
-JITABI_INLINE
-ssize_t pack_{{ enum_name }}(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_{{ enum_name }}(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     if (__dst_len < 1) {
         PyErr_SetString(PyExc_ValueError, "output buffer too small");

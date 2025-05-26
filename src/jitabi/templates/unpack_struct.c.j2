@@ -105,8 +105,7 @@ unpack_{{ call.resolved_name }}(
     );
 {%- endmacro -%}
 
-JITABI_INLINE
-PyObject *unpack_{{ fn_name }}(const char *b, size_t buf_len, size_t *c)
+static PyObject *unpack_{{ fn_name }}(const char *b, size_t buf_len, size_t *c)
 {
 {% if fields|length > 0 %}
     size_t __consumed = 0;

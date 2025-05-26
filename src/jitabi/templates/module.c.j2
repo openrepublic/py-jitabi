@@ -18,24 +18,13 @@ typedef SSIZE_T  ssize_t;
 
 #endif
 
-#ifdef __JITABI_INLINED
+#if defined(_MSC_VER) && !defined(__clang__)
 
-    #if defined(_MSC_VER) && !defined(__clang__)
-
-        #define JITABI_INLINE static __inline
-        #define JITABI_INLINE_ALWAYS static __forceinline
-
-    #else
-
-        #define JITABI_INLINE static inline __attribute__((hot))
-        #define JITABI_INLINE_ALWAYS static inline __attribute__((always_inline, hot))
-
-    #endif
+    #define JITABI_INLINE __inline
 
 #else
 
-#define JITABI_INLINE static
-#define JITABI_INLINE_ALWAYS static
+    #define JITABI_INLINE inline
 
 #endif
 
@@ -142,10 +131,10 @@ static void logger_logf(PyObject *fn, const char *fmt, ...)
 
 // forward declarations
 {% for f in functions %}
-JITABI_INLINE PyObject *unpack_{{ f.name }}(const char *buffer, size_t buffer_len, size_t *consumed);
+static PyObject *unpack_{{ f.name }}(const char *buffer, size_t buffer_len, size_t *consumed);
 {% endfor -%}
 {% for a in aliases %}
-JITABI_INLINE PyObject *unpack_{{ a.alias }}(const char *buffer, size_t buffer_len, size_t *consumed);
+static PyObject *unpack_{{ a.alias }}(const char *buffer, size_t buffer_len, size_t *consumed);
 {% endfor -%}
 
 {% for f in functions %}
@@ -223,7 +212,7 @@ static const struct dispatch_entry _DISPATCH[] = {
     { NULL, NULL }
 };
 
-JITABI_INLINE
+static
 PyObject *py_unpack(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
 {
     if (!PyUnicode_Check(args[0])) {
@@ -326,10 +315,10 @@ PyObject *py_unpack(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
 
 // forward declarations
 {% for f in functions %}
-JITABI_INLINE ssize_t pack_{{ f.name }}(PyObject *object, char *destination, size_t dst_len);
+static ssize_t pack_{{ f.name }}(PyObject *object, char *destination, size_t dst_len);
 {% endfor -%}
 {% for a in aliases %}
-JITABI_INLINE ssize_t pack_{{ a.alias }}(PyObject *object, char *destination, size_t dst_len);
+static ssize_t pack_{{ a.alias }}(PyObject *object, char *destination, size_t dst_len);
 {% endfor -%}
 
 {% for f in functions %}

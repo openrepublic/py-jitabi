@@ -1,5 +1,4 @@
-JITABI_INLINE
-ssize_t pack_{{ alias }}(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_{{ alias }}(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_{{ call.resolved_name }}(__obj, {% for a in call.args %}{{ a }}, {% endfor %}__dst, __dst_len);
 }

@@ -1,5 +1,4 @@
-JITABI_INLINE
-PyObject *unpack_{{ enum_name }}(const char *b, size_t buf_len, size_t *c)
+static PyObject *unpack_{{ enum_name }}(const char *b, size_t buf_len, size_t *c)
 {
     // decode variant index (ULEB128)
     size_t __local = 0;

@@ -67,7 +67,6 @@ def import_module(
 
 
 default_param_debug: bool = False
-default_param_inlined: bool = False
 default_param_with_pack: bool = True
 default_param_with_unpack: bool = True
 
@@ -75,14 +74,12 @@ default_param_with_unpack: bool = True
 @dataclass(frozen=True)
 class ModuleParams:
     debug: bool
-    inlined: bool
     with_pack: bool
     with_unpack: bool
 
     def as_dict(self) -> dict:
         return {
             'debug': self.debug,
-            'inlined': self.inlined,
             'with_pack': self.with_pack,
             'with_unpack': self.with_unpack
         }
@@ -90,7 +87,6 @@ class ModuleParams:
     def as_bytes(self) -> bytes:
         return bytes([
             int(self.debug),
-            int(self.inlined),
             int(self.with_pack),
             int(self.with_unpack)
         ])
@@ -99,7 +95,6 @@ class ModuleParams:
     def from_dict(d: dict) -> ModuleParams:
         return ModuleParams(
             debug=d.get('debug', default_param_debug),
-            inlined=d.get('inlined', default_param_inlined),
             with_pack=d.get('with_pack', default_param_with_pack),
             with_unpack=d.get('with_unpack', default_param_with_unpack),
         )
@@ -108,7 +103,6 @@ class ModuleParams:
     def default() -> ModuleParams:
         return ModuleParams(
             debug=default_param_debug,
-            inlined=default_param_inlined,
             with_pack=default_param_with_pack,
             with_unpack=default_param_with_unpack
         )
@@ -125,7 +119,6 @@ class CacheKey:
 
         if (
             self.params.debug or
-            self.params.inlined or
             self.params.with_pack or
             self.params.with_unpack
         ):
@@ -133,9 +126,6 @@ class CacheKey:
 
             if self.params.debug:
                 s += ' debug'
-
-            if self.params.inlined:
-                s += ' inlined'
 
             if self.params.with_pack:
                 s += ' with_pack'
@@ -206,8 +196,6 @@ class Cache:
 
                 if (
                     'debug' not in params
-                    or
-                    'inlined' not in params
                     or
                     'with_pack' not in params
                     or

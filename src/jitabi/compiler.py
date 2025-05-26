@@ -170,9 +170,6 @@ def compile_module(
     if build_params.debug:
         defs.append('__JITABI_DEBUG')
 
-    if build_params.inlined:
-        defs.append('__JITABI_INLINED')
-
     if build_params.with_unpack:
         defs.append('__JITABI_UNPACK')
 

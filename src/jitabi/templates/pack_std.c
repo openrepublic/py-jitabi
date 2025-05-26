@@ -1,5 +1,5 @@
 
-JITABI_INLINE_ALWAYS ssize_t encode_varuint32(unsigned long long val, char *out)
+static JITABI_INLINE ssize_t encode_varuint32(unsigned long long val, char *out)
 {
     size_t i = 0;
     do {
@@ -11,7 +11,7 @@ JITABI_INLINE_ALWAYS ssize_t encode_varuint32(unsigned long long val, char *out)
     return i;
 }
 
-JITABI_INLINE_ALWAYS ssize_t encode_varint32(long long val, char *out)
+static JITABI_INLINE ssize_t encode_varint32(long long val, char *out)
 {
     size_t i = 0;
     int more = 1;
@@ -35,7 +35,7 @@ JITABI_INLINE_ALWAYS ssize_t encode_varint32(long long val, char *out)
     return (ssize_t)i;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_bool(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_bool(PyObject *obj, char *out, size_t out_len)
 {
     int res = PyObject_IsTrue(obj);
     if (res < 0) return -1;
@@ -43,7 +43,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_bool(PyObject *obj, char *out, size_t out_len)
     return 1;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_uint8(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_uint8(PyObject *obj, char *out, size_t out_len)
 {
     unsigned long val = PyLong_AsUnsignedLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -55,7 +55,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_uint8(PyObject *obj, char *out, size_t out_len
     return 1;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_uint16(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_uint16(PyObject *obj, char *out, size_t out_len)
 {
     unsigned long val = PyLong_AsUnsignedLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -70,7 +70,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_uint16(PyObject *obj, char *out, size_t out_le
     return 2;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_uint32(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_uint32(PyObject *obj, char *out, size_t out_len)
 {
     unsigned long val = PyLong_AsUnsignedLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -91,7 +91,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_uint32(PyObject *obj, char *out, size_t out_le
     return 4;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_uint64(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_uint64(PyObject *obj, char *out, size_t out_len)
 {
     unsigned long long val = PyLong_AsUnsignedLongLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -108,7 +108,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_uint64(PyObject *obj, char *out, size_t out_le
     return 8;
 }
 
-JITABI_INLINE_ALWAYS ssize_t
+static JITABI_INLINE ssize_t
 pack_uint128(PyObject *obj, char *out, size_t out_len)
 {
     if (out_len < 16) {
@@ -144,7 +144,7 @@ pack_uint128(PyObject *obj, char *out, size_t out_len)
     return 16;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_int8(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_int8(PyObject *obj, char *out, size_t out_len)
 {
     long val = PyLong_AsLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -156,7 +156,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_int8(PyObject *obj, char *out, size_t out_len)
     return 1;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_int16(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_int16(PyObject *obj, char *out, size_t out_len)
 {
     long val = PyLong_AsLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -171,7 +171,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_int16(PyObject *obj, char *out, size_t out_len
     return 2;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_int32(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_int32(PyObject *obj, char *out, size_t out_len)
 {
     long val = PyLong_AsLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -189,7 +189,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_int32(PyObject *obj, char *out, size_t out_len
     return 4;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_int64(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_int64(PyObject *obj, char *out, size_t out_len)
 {
     long long val = PyLong_AsLongLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -206,7 +206,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_int64(PyObject *obj, char *out, size_t out_len
     return 8;
 }
 
-JITABI_INLINE_ALWAYS ssize_t
+static JITABI_INLINE ssize_t
 pack_int128(PyObject *obj, char *out, size_t out_len)
 {
     if (out_len < 16) {
@@ -255,7 +255,7 @@ pack_int128(PyObject *obj, char *out, size_t out_len)
     return 16;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_varuint32(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_varuint32(PyObject *obj, char *out, size_t out_len)
 {
     unsigned long long val = PyLong_AsUnsignedLongLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -263,7 +263,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_varuint32(PyObject *obj, char *out, size_t out
     return encode_varuint32(val, out);
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_varint32(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_varint32(PyObject *obj, char *out, size_t out_len)
 {
     long long val = PyLong_AsLongLong(obj);
     if (PyErr_Occurred()) return -1;
@@ -271,7 +271,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_varint32(PyObject *obj, char *out, size_t out_
     return encode_varint32(val, out);
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_float32(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_float32(PyObject *obj, char *out, size_t out_len)
 {
     float f = (float)PyFloat_AsDouble(obj);
     if (PyErr_Occurred()) return -1;
@@ -279,7 +279,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_float32(PyObject *obj, char *out, size_t out_l
     return 4;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_float64(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_float64(PyObject *obj, char *out, size_t out_len)
 {
     double d = PyFloat_AsDouble(obj);
     if (PyErr_Occurred()) return -1;
@@ -287,7 +287,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_float64(PyObject *obj, char *out, size_t out_l
     return 8;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_raw(PyObject *obj, size_t len, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_raw(PyObject *obj, size_t len, char *out, size_t out_len)
 {
     if (!PyBytes_Check(obj)) {
         PyErr_SetString(PyExc_TypeError, "expected a bytes object");
@@ -308,7 +308,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_raw(PyObject *obj, size_t len, char *out, size
     return size;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_bytes(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_bytes(PyObject *obj, char *out, size_t out_len)
 {
     if (!PyBytes_Check(obj)) {
         PyErr_SetString(PyExc_TypeError, "expected a bytes object");
@@ -334,7 +334,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_bytes(PyObject *obj, char *out, size_t out_len
     return len_len + size;
 }
 
-JITABI_INLINE_ALWAYS ssize_t pack_string(PyObject *obj, char *out, size_t out_len)
+static JITABI_INLINE ssize_t pack_string(PyObject *obj, char *out, size_t out_len)
 {
     if (!PyUnicode_Check(obj)) {
         PyErr_SetString(PyExc_TypeError, "expected a string");
@@ -363,8 +363,7 @@ JITABI_INLINE_ALWAYS ssize_t pack_string(PyObject *obj, char *out, size_t out_le
 
 // default structs
 
-JITABI_INLINE
-ssize_t pack_asset(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_asset(PyObject *__obj, char *__dst, size_t __dst_len)
 {
 
     ssize_t __offset = 0;
@@ -429,8 +428,7 @@ ssize_t pack_asset(PyObject *__obj, char *__dst, size_t __dst_len)
     return __offset;
 }
 
-JITABI_INLINE
-ssize_t pack_extended_asset(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_extended_asset(PyObject *__obj, char *__dst, size_t __dst_len)
 {
 
     ssize_t __offset = 0;
@@ -498,92 +496,77 @@ ssize_t pack_extended_asset(PyObject *__obj, char *__dst, size_t __dst_len)
 
 // default aliases
 
-JITABI_INLINE
-ssize_t pack_float128(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_float128(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_raw(__obj, 16, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_name(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_name(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_uint64(__obj, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_account_name(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_account_name(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_uint64(__obj, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_symbol(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_symbol(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_uint64(__obj, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_symbol_code(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_symbol_code(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_uint64(__obj, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_rd160(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_rd160(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_raw(__obj, 20, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_checksum160(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_checksum160(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_raw(__obj, 20, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_sha256(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_sha256(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_raw(__obj, 32, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_checksum256(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_checksum256(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_raw(__obj, 32, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_checksum512(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_checksum512(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_raw(__obj, 64, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_time_point(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_time_point(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_uint64(__obj, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_time_point_sec(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_time_point_sec(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_uint32(__obj, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_block_timestamp_type(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_block_timestamp_type(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_uint32(__obj, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_public_key(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_public_key(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_raw(__obj, 34, __dst, __dst_len);
 }
 
-JITABI_INLINE
-ssize_t pack_signature(PyObject *__obj, char *__dst, size_t __dst_len)
+static ssize_t pack_signature(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_raw(__obj, 66, __dst, __dst_len);
 }
