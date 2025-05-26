@@ -86,16 +86,16 @@ jobs:
         run: uv venv .venv --python=3.10
 
       - name: Install project (uv sync)
-        run: uv sync
+        run: uv sync --dev
 
       - name: Run tests
-        run: uv run pytest -s --log-cli-level=debug
+        run: uv run pytest -n auto
 
       - name: Create 3.13 virtualenv
         run: uv venv .venv --python=3.13
 
       - name: Install project (uv sync)
-        run: uv sync
+        run: uv sync --dev
 
       - name: Run tests
-        run: uv run pytest -s --log-cli-level=debug
+        run: uv run pytest -n auto

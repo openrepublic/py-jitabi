@@ -347,7 +347,7 @@ def load_abis(whitelist: list[str] = _default_abi_whitelist) -> list[tuple[str, 
 
             try:
                 abis.append((
-                    p.stem, ABIView.from_abi(cls.from_file(p))
+                    p.stem, ABIView.from_file(p, cls=cls)
                 ))
 
             except Exception as e:

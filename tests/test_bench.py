@@ -2,7 +2,7 @@ import os
 import pytest
 
 from jitabi import JITContext
-from jitabi.json import ABI
+from jitabi.protocol import ABIView
 from jitabi._testing import (
     inside_ci,
     assert_dict_eq,
@@ -26,7 +26,10 @@ if inside_ci:
 
 
 max_time: float = 2 * 60
-stdabi = ABI.from_file(testing_abi_dir / 'standard.json')
+stdabi = ABIView.from_file(
+    testing_abi_dir / 'standard.json',
+    cls='std'
+)
 jit = JITContext(cache_path=testing_cache_dir)
 
 

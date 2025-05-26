@@ -33,3 +33,6 @@ dev = [
     'pytest-benchmark>=5.1.0',
     'pytest-xdist>=3.6.1',
 ]
+
+[tool.uv]
+default-groups = []

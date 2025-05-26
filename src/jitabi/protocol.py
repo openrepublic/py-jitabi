@@ -316,8 +316,18 @@ class ABIView:
         return ABIView(ABIDef.from_str(s))
 
     @staticmethod
-    def from_file(p: Path | str) -> ABIView:
-        return ABIView(ABIDef.from_file(p))
+    def from_file(p: Path | str, cls: str | None = None) -> ABIView:
+        if not cls:
+            cls = ABIDef
+
+        if isinstance(cls, str):
+            if cls in ['std', 'standard']:
+                cls = SHIPABIDef
+
+            else:
+                cls = ABIDef
+
+        return ABIView(cls.from_file(p))
 
     @staticmethod
     def from_abi(abi: ABIDef | SHIPABIDef | ABIView) -> ABIView:

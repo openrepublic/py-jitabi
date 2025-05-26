@@ -29,12 +29,6 @@ first call for a given *(module_name, abi_hash)* pair; subsequent calls reuse
 artifacts stored in ``~/.jitabi`` (or the path you pass as *cache_path*).
 
 '''
-try:
-    import pdbp
-
-except ImportError:
-    ...
-
 import logging
 import hashlib
 
@@ -52,10 +46,6 @@ from jitabi.compiler import compile_module
 from jitabi.protocol import ABIDef, ABIView
 
 from jitabi.utils import detect_working_compiler
-
-
-if not detect_working_compiler():
-    raise RuntimeError('A C compiler is required please set the CC flag')
 
 
 logger = logging.getLogger(__name__)
@@ -91,6 +81,13 @@ class JITContext:
         cache_path: Path | str | None = None,
         readonly: bool = False
     ):
+        if not readonly and not detect_working_compiler():
+            raise RuntimeError(
+                'A C compiler is required to initialize a JITContext with '
+                'readonly=False, please set the CC flag or open JITContext '
+                'in readonly mode.'
+            )
+
         self._cache = Cache(fs_location=cache_path)
         self._readonly = readonly
         logger.info(

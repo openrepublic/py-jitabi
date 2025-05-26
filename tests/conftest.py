@@ -10,6 +10,12 @@ from jitabi._testing import (
     bootstrap_cache
 )
 
+try:
+    import pdbp
+
+except ImportError:
+    ...
+
 
 def pytest_configure(config: pytest.Config) -> None:
     '''
