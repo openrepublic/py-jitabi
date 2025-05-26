@@ -178,7 +178,6 @@ struct dispatch_entry {
     unpack_fn_t ufn;
 };
 
-/* table is terminated by {NULL, NULL} for easy iteration */
 static const struct dispatch_entry _DISPATCH[] = {
     {"bool",      unpack_bool},
 
@@ -405,6 +404,150 @@ DEF_PACK_WRAPPER (py_pack_{{ f.name }}, pack_{{ f.name }})
 DEF_PACK_WRAPPER (py_pack_{{ a.alias }}, pack_{{ a.alias }})
 {%- endfor %}
 
+
+// type dispatch
+typedef ssize_t (*pack_fn_t)(PyObject *, char *, size_t);
+
+struct pack_dispatch_entry {
+    const char *name;
+    pack_fn_t   pfn;
+};
+
+static const struct pack_dispatch_entry _PACK_DISPATCH[] = {
+    /* std types */
+    {"bool",      pack_bool},
+
+    {"uint8",     pack_uint8},
+    {"uint16",    pack_uint16},
+    {"uint32",    pack_uint32},
+    {"uint64",    pack_uint64},
+    {"uint128",   pack_uint128},
+
+    {"int8",      pack_int8},
+    {"int16",     pack_int16},
+    {"int32",     pack_int32},
+    {"int64",     pack_int64},
+    {"int128",    pack_int128},
+
+    {"varuint32", pack_varuint32},
+    {"varint32",  pack_varint32},
+
+    {"float32",   pack_float32},
+    {"float64",   pack_float64},
+
+    {"bytes",     pack_bytes},
+    {"string",    pack_string},
+
+{% for f in functions %}
+    {"{{ f.name }}",  pack_{{ f.name }}},
+{% endfor %}
+{% for a in aliases %}
+    {"{{ a.alias }}", pack_{{ a.alias }}},
+{% endfor %}
+    {NULL, NULL}
+};
+
+static PyObject *
+py_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    if (nargs != 2 || !PyUnicode_Check(args[0])) {
+        PyErr_SetString(PyExc_TypeError,
+                        "usage: pack(type_name: str, value)");
+        return NULL;
+    }
+
+    const char  *type_name = PyUnicode_AsUTF8(args[0]);
+    Py_ssize_t   tn_len    = PyUnicode_GET_LENGTH(args[0]);
+    PyObject    *value     = (PyObject *)args[1];
+
+    bool is_array = tn_len >= 2 &&
+                    type_name[tn_len - 1] == ']' &&
+                    type_name[tn_len - 2] == '[';
+
+    const char *base = type_name;
+    char buf_type[256];
+    if (is_array) {                      /* strip the [] suffix */
+        memcpy(buf_type, type_name, tn_len - 2);
+        buf_type[tn_len - 2] = '\0';
+        base = buf_type;
+    }
+
+    pack_fn_t fn = NULL;
+    for (const struct pack_dispatch_entry *it = _PACK_DISPATCH; it->name; ++it)
+        if (strcmp(base, it->name) == 0) { fn = it->pfn; break; }
+
+    if (!fn) {
+        PyErr_Format(PyExc_ValueError, "unknown type '%s'", type_name);
+        return NULL;
+    }
+
+    Py_ssize_t cap    = JITABI_PACK_INITIAL_BUF_SIZE;
+    PyObject  *bytes  = PyBytes_FromStringAndSize(NULL, cap);
+    if (!bytes) return NULL;
+
+    for (int attempts = 0; attempts < 5; ++attempts) {
+        char   *out = PyBytes_AS_STRING(bytes);
+        ssize_t written;
+
+        if (!is_array) {                         /* scalar path */
+            written = fn(value, out, (size_t)cap);
+        } else {                                /* array path  */
+            if (!PyList_Check(value)) {
+                PyErr_SetString(PyExc_TypeError,
+                                "expected a list for array type");
+                written = -1;
+            } else {
+                Py_ssize_t list_len = PyList_GET_SIZE(value);
+
+                char len_buf[10];
+                ssize_t len_sz = encode_varuint32(
+                    (unsigned long long)list_len, len_buf);
+
+                if (len_sz < 0 || (size_t)len_sz > (size_t)cap) {
+                    PyErr_SetString(PyExc_ValueError,
+                                    "output buffer too small");
+                    written = -1;
+                } else {
+                    memcpy(out, len_buf, (size_t)len_sz);
+                    size_t offset = (size_t)len_sz;
+
+                    for (Py_ssize_t i = 0; i < list_len; ++i) {
+                        PyObject *item = PyList_GET_ITEM(value, i);
+                        ssize_t  used  = fn(item,
+                                            out + offset,
+                                            (size_t)cap - offset);
+                        if (used < 0) { written = -1; break; }
+                        offset += used;
+                    }
+                    written = (ssize_t)offset;
+                }
+            }
+        }
+
+        if (written >= 0) {
+            _PyBytes_Resize(&bytes, written);   /* ignore failure */
+            return bytes;
+        }
+
+        if (!PyErr_ExceptionMatches(PyExc_ValueError)) {
+            Py_DECREF(bytes);
+            return NULL;
+        }
+
+        PyErr_Clear();
+        cap *= 2;
+        if (_PyBytes_Resize(&bytes, cap) < 0) {  /* realloc failed */
+            Py_DECREF(bytes);
+            return NULL;
+        }
+    }
+
+    Py_DECREF(bytes);
+    PyErr_SetString(PyExc_RuntimeError,
+                    "exceeded maximum resize attempts in pack()");
+    return NULL;
+}
+
 #endif
 
 
@@ -415,7 +558,7 @@ static PyMethodDef Methods[] = {
         "unpack",
         (PyCFunction)py_unpack,
         METH_FASTCALL,
-        "dispatch-to-type unpack(bytes) helper"
+        "dispatch-to-type unpack(type: str, buf: bytes) helper"
     },
 
     // structs & enums
@@ -431,6 +574,14 @@ static PyMethodDef Methods[] = {
     #endif
 
     #ifdef __JITABI_PACK
+    // dynamic dispatch
+    {
+        "pack",
+        (PyCFunction)py_pack,
+        METH_FASTCALL,
+        "dispatch-to-type pack(type: str, obj: any) helper"
+    },
+
     // structs & enums
     {%- for f in functions %}
     {"pack_{{ f.name }}",   py_pack_{{ f.name }},   METH_O, "pack structure {{ f.name }}"},

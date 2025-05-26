@@ -58,3 +58,30 @@ def test_roundtrip(case_info, rng):
     assert_dict_eq(input_value, unpacked)
 
     logger.debug(f'Roundtrip passed for {case_name}!')
+
+
+@pytest.mark.parametrize('case_info', iter_type_cases())
+@given(rng=st.randoms())
+@settings(max_examples=1)
+def test_roundtrip_distpach(case_info, rng):
+    mod_name, abi, key, module, type_name = case_info
+
+    case_name = f'{mod_name}:{type_name}'
+
+    input_value = random_abi_type(abi, type_name, rng=rng)
+    logger.debug(
+        f'Generated input for {case_name}: %s',
+        json.dumps(input_value, indent=4, cls=JSONHexEncoder)
+    )
+
+    packed = module.pack(type_name, input_value)
+
+    logger.debug(f'Packed {case_name} into {len(packed):,} bytes.')
+
+    unpacked = module.unpack(type_name, packed)
+
+    event(case_name)
+
+    assert_dict_eq(input_value, unpacked)
+
+    logger.debug(f'Roundtrip passed for {case_name}!')
