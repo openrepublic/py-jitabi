@@ -29,6 +29,14 @@ from jitabi.json import ABI
 from jitabi.utils import JSONHexEncoder, normalize_dict
 from jitabi.cache import CacheKey
 
+from jitabi.protocol import (
+    TypeModifier,
+    IOTypes,
+    is_raw_type,
+    is_std_type,
+    ABIView,
+)
+
 
 inside_ci = any(
     os.getenv(v)
@@ -159,6 +167,145 @@ def assert_dict_eq(a: dict, b: dict):
     if diff:
         dump = json.dumps(diff, indent=4, cls=JSONHexEncoder)
         raise AssertionError(f'Differences found: {dump}')
+
+
+
+def random_abi_type(
+    abi: ABIView,
+    type_name: str,
+    min_list_size: int = 0,
+    max_list_size: int = 2,
+    list_delta: int = 0,
+    chance_of_none: float = 0.5,
+    chance_delta: float = 0.5,
+    type_args: dict[str, dict] = {},
+    rng: random.Random  = random
+) -> IOTypes:
+    # get type meta like alias solve & modifier extraction
+    resolved = abi.resolve_type(type_name)
+    res_type = resolved.resolved_name
+
+    # keyword args for potential recursive invocation
+    kwargs = {
+        'min_list_size': min_list_size,
+        'max_list_size': max_list_size,
+        'list_delta': list_delta,
+        'chance_of_none': chance_of_none,
+        'chance_delta': chance_delta,
+        'type_args': type_args,
+        'rng': rng
+    }
+
+    # if we have an entry for this type in type_args override args with it
+    if type_name in type_args:
+        kwargs |= type_args[type_name]
+
+    # handle modifiers
+    match resolved.modifier:
+        case TypeModifier.ARRAY:
+            # decrease next levels list sizes by list_delta or clamp to 0
+            pre_min_size = kwargs['min_list_size']
+            pre_max_size = kwargs['max_list_size']
+            kwargs['min_list_size'] = max(
+                kwargs['min_list_size'] - kwargs['list_delta'], 0
+            )
+            kwargs['max_list_size'] = max(
+                kwargs['max_list_size'] - kwargs['list_delta'], 0
+            )
+            # calculate a random list size for this level & generate
+            list_size = rng.randint(pre_min_size, pre_max_size)
+            return [
+                random_abi_type(abi, res_type, **kwargs)
+                for _ in range(list_size)
+            ]
+
+        case TypeModifier.OPTIONAL | TypeModifier.EXTENSION:
+            # maybe generate a None
+            if rng.random() < 1. - chance_of_none:
+                return None
+
+            # increase next level's chances of None by chance_delta or clamp to
+            # 100% chance == 1.
+            kwargs['chance_of_none'] = min(
+                1.,
+                chance_of_none + chance_delta
+            )
+
+            # generate type
+            return random_abi_type(abi, res_type, **kwargs)
+
+    # check for raw(LEN) types
+    if is_raw_type(res_type):
+        return random_std_type('raw(' + resolved.args[0] + ')', rng=rng)
+
+    # delegate standard types
+    if is_std_type(res_type):
+        return random_std_type(res_type, rng=rng)
+
+    if abi.is_enum_type(res_type):
+        # if type resolved to an enum choose a random variant of it
+        enum_type = rng.choice(
+            abi._enum_dict[res_type].variants()
+        )
+        # generate the variant obj
+        obj = random_abi_type(
+            abi,
+            enum_type,
+            **kwargs
+        )
+        if isinstance(obj, dict):
+            # if its a struct variant inject type key
+            return {
+                'type': enum_type,
+                **obj
+            }
+
+        # variant is a std type, just return
+        return obj
+
+    # by this point we expect types to be a struct defined in the ABI
+    if not abi.is_struct_type(res_type):
+        raise TypeError(
+            f'Expected {type_name} to resolve to a struct!: {resolved}'
+        )
+
+    # get struct meta
+    struct = abi.struct_map[res_type]
+
+    # if struct has a base, generate it first
+    base = (
+        {} if not struct.base()
+        else random_abi_type(
+            abi,
+            struct.base(),
+            **kwargs
+        )
+    )
+
+    fields = struct.fields()
+
+    # generate actual struct obj from its fields
+    obj = base | {
+        f.name(): random_abi_type(
+            abi,
+            f.type_name(),
+            **kwargs
+        )
+        for f in fields
+    }
+
+    # when object contains fields with the extension modifier ($) we must
+    # ensure that after the first None field, all remaining extension fields
+    # are also None
+    found_extension = False
+    for field, value in zip(fields, list(obj.values())):
+        if field.type_name()[-1] == '$' and not value:
+            found_extension = True
+
+        if found_extension:
+            obj[field.name()] = None
+
+    return obj
 
 
 # stuff used in our tests

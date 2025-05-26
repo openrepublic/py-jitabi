@@ -1,10 +1,6 @@
-# meant to be used with this nixpkgs fork+branch:
-#     - https://github.com/guilledk/nixpkgs/tree/cpython-debug
-#
-# already merged upstream:
-#     - https://github.com/NixOS/nixpkgs/pull/409943
-#
-# -$ nix-shell --argstr pythonVersion "312" debug.nix
+# for now `enableDebug` param for python package requires nix-unstable channel
+# usage:
+#     nix-shell --argstr pythonVersion "312" debug.nix
 {
   pkgs ? import <nixpkgs> {},
   pythonVersion ? "310"

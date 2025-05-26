@@ -20,14 +20,6 @@ def pytest_configure(config: pytest.Config) -> None:
           share and set JIT_EXAMPLE_QUOTA accordingly
 
     '''
-    # bail out entirely if xdist isn’t loaded or --dist=no
-    if (
-        not config.pluginmanager.hasplugin('xdist')
-        or
-        config.getoption('dist') == 'no'
-    ):
-        return
-
     force_reload: bool = bool(os.getenv('JITABI_RELOAD', ''))
     abi_whitelist: list[str] = os.getenv(
         'JITABI_WHITELIST',default_abi_whitelist_str

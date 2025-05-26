@@ -212,6 +212,8 @@ class ABIResolvedType:
 class ABIView(Protocol):
     filetype: str
 
+    struct_map: dict[str, StructDef]
+
     def aliases(self) -> list[AliasDef]:
         ...
 
@@ -237,16 +239,6 @@ class ABIView(Protocol):
         ...
 
     def resolve_type(self, name: str) -> ABIResolvedType:
-        ...
-
-    def random_of(
-        self,
-        name: str,
-        max_list_size: int = 4,
-        chance_of_none: float = 0.5,
-        chance_delta: float = 0.5,
-        rng: random.Random | None = None
-    ) -> IOTypes:
         ...
 
     @staticmethod

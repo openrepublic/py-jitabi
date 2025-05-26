@@ -109,6 +109,8 @@ class ABI(ABIView):
     abi_def: dict
     filetype: str = 'json'
 
+    struct_map: dict[str, ABIStruct]
+
     def __init__(
         self,
         abi_def: dict
@@ -134,13 +136,13 @@ class ABI(ABIView):
             for s in self.abi_def.get('structs')
         ] + DEFAULT_STRUCTS
 
-        self._struct_dict = {
+        self.struct_map = {
             s.name(): s for s in self._structs
         }
 
         self._valid_types = set([
             *STD_TYPES,
-            *list(self._struct_dict.keys()),
+            *list(self.struct_map.keys()),
             *list(self._enum_dict.keys()),
             *[a.new_type_name() for a in self._aliases],
         ])
@@ -170,7 +172,7 @@ class ABI(ABIView):
         return name in self._enum_dict
 
     def is_struct_type(self, name: str) -> bool:
-        return name in self._struct_dict
+        return name in self.struct_map
 
     def maybe_resolve_alias(self, name: str) -> str | None:
         for a in self.aliases():
@@ -210,117 +212,6 @@ class ABI(ABIView):
             is_std=is_std_type(unmod_name),
             modifier=modifier
         )
-
-    def random_of(
-        self,
-        type_name: str,
-        min_list_size: int = 0,
-        max_list_size: int = 2,
-        list_delta: int = 0,
-        chance_of_none: float = 0.5,
-        chance_delta: float = 0.5,
-        type_args: dict[str, dict] = {},
-        rng: random.Random  = random
-    ) -> IOTypes:
-        resolved = self.resolve_type(type_name)
-        res_type = resolved.resolved_name
-
-        kwargs = {
-            'min_list_size': min_list_size,
-            'max_list_size': max_list_size,
-            'list_delta': list_delta,
-            'chance_of_none': chance_of_none,
-            'chance_delta': chance_delta,
-            'type_args': type_args,
-            'rng': rng
-        }
-
-        if type_name in type_args:
-            kwargs |= type_args[type_name]
-
-        match resolved.modifier:
-            case TypeModifier.ARRAY:
-                pre_min_size = kwargs['min_list_size']
-                pre_max_size = kwargs['max_list_size']
-                kwargs['min_list_size'] = max(kwargs['min_list_size'] - kwargs['list_delta'], 0)
-                kwargs['max_list_size'] = max(kwargs['max_list_size'] - kwargs['list_delta'], 0)
-                return [
-                    self.random_of(res_type, **kwargs)
-                    for _ in range(
-                        rng.randint(pre_min_size, pre_max_size)
-                    )
-                ]
-
-            case TypeModifier.OPTIONAL | TypeModifier.EXTENSION:
-                if rng.random() < 1. - chance_of_none:
-                    return None
-
-                kwargs['chance_of_none'] = min(
-                    1.,
-                    chance_of_none + chance_delta
-                )
-
-                return self.random_of(res_type, **kwargs)
-
-        if is_raw_type(res_type):
-            return jitabi._testing.random_std_type('raw(' + resolved.args[0] + ')', rng=rng)
-
-        if is_std_type(res_type):
-            return jitabi._testing.random_std_type(res_type, rng=rng)
-
-        if self.is_enum_type(res_type):
-            enum_type = rng.choice(
-                self._enum_dict[res_type].variants()
-            )
-            obj = self.random_of(
-                enum_type,
-                **kwargs
-            )
-            if isinstance(obj, dict):
-                return {
-                    'type': enum_type,
-                    **obj
-                }
-
-            return obj
-
-        if not self.is_struct_type(res_type):
-            raise TypeError(
-                f'Expected {type_name} to resolve to a struct!: {resolved}'
-            )
-
-        struct = self._struct_dict[res_type]
-
-        base = (
-            {} if not struct.base()
-            else self.random_of(
-                struct.base(),
-                **kwargs
-            )
-        )
-
-        fields = struct.fields()
-
-        obj = base | {
-            f.name(): self.random_of(
-                f.type_name(),
-                **kwargs
-            )
-            for f in fields
-        }
-
-        # ensure if one is none are there are more extension field remaining
-        # all others are also None
-        found_extension = False
-        for field, value in zip(fields, list(obj.values())):
-            if field.type_name()[-1] == '$' and not value:
-                found_extension = True
-
-            if found_extension:
-                obj[field.name()] = None
-
-        return obj
-
 
     @staticmethod
     def from_str(abi_str: str) -> ABI:

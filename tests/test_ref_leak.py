@@ -18,7 +18,8 @@ from jitabi._testing import (
     default_max_examples,
     default_test_deadline,
     measure_leaks_in_call,
-    iter_type_cases
+    iter_type_cases,
+    random_abi_type
 )
 
 
@@ -78,7 +79,7 @@ def test_ref_leaks(case_info, rng):
     pack_fn = getattr(module, f'pack_{type_name}')
     unpack_fn = getattr(module, f'unpack_{type_name}')
 
-    input_value = abi.random_of(type_name, rng=rng)
+    input_value = random_abi_type(abi, type_name, rng=rng)
 
     logger.debug(
         'Generated input: %s',

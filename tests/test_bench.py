@@ -7,7 +7,8 @@ from jitabi._testing import (
     inside_ci,
     assert_dict_eq,
     testing_cache_dir,
-    testing_abi_dir
+    testing_abi_dir,
+    random_abi_type
 )
 
 
@@ -40,7 +41,8 @@ _, std_no_inline = jit.module_for_abi(
 
 
 # generate fat block
-input_fat_sample = stdabi.random_of(
+input_fat_sample = random_abi_type(
+    stdabi,
     'signed_block',
     type_args={
         'transaction_receipt[]': {
@@ -57,7 +59,8 @@ packed_fat_sample: bytes = std.pack_signed_block(input_fat_sample)
 
 
 # generate empty block
-input_sample = stdabi.random_of(
+input_sample = random_abi_type(
+    stdabi,
     'signed_block',
     type_args={
         'transaction_receipt[]': {

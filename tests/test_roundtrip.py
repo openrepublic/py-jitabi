@@ -15,7 +15,8 @@ from jitabi._testing import (
     assert_dict_eq,
     default_max_examples,
     default_test_deadline,
-    iter_type_cases
+    iter_type_cases,
+    random_abi_type
 )
 
 
@@ -40,7 +41,7 @@ def test_roundtrip(case_info, rng):
     pack_fn = getattr(module, f'pack_{type_name}')
     unpack_fn = getattr(module, f'unpack_{type_name}')
 
-    input_value = abi.random_of(type_name, rng=rng)
+    input_value = random_abi_type(abi, type_name, rng=rng)
     logger.debug(
         f'Generated input for {case_name}: %s',
         json.dumps(input_value, indent=4, cls=JSONHexEncoder)
