@@ -21,6 +21,7 @@ from jitabi.templates import hash_templates
 from .cpython import c_source_from_abi as c_source_from_abi
 
 import jitabi.codegen.cpython as _cpython
+import jitabi.protocol as _protocol
 
 
 def hash_pipeline(as_bytes: bool = True) -> bytes | str:
@@ -31,6 +32,7 @@ def hash_pipeline(as_bytes: bool = True) -> bytes | str:
     hasher = hashlib.sha256()
     hasher.update(hash_templates(as_bytes=True))
     hasher.update(Path(_cpython.__file__).read_bytes())
+    hasher.update(Path(_protocol.__file__).read_bytes())
 
     return (
         hasher.digest() if as_bytes

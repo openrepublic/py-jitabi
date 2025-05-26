@@ -43,7 +43,7 @@ from jitabi.templates import (
 logger = logging.getLogger(__name__)
 
 
-def c_source_from_abi(
+def try_c_source_from_abi(
     name: str,
     abi_hash: str,
     abi: ABIView
@@ -59,22 +59,22 @@ def c_source_from_abi(
 
     functions: list[dict] = []
 
-    for struct_meta in abi.structs():
-        sname = struct_meta.name()
+    for struct_meta in abi.structs:
+        sname = struct_meta.name
         check_ident(sname, f'struct {sname}')
 
-        bname = struct_meta.base()
+        bname = struct_meta.base
         if bname:
             check_ident(bname, f'struct base {bname}')
 
         fields = []
-        for f in struct_meta.fields():
-            fname = f.name()
+        for f in struct_meta.fields:
+            fname = f.name
             check_ident(fname, f'struct {sname} field {fname}')
-            check_type(f.type_name())
+            check_type(f.type_)
             fields.append({
                 'name': fname,
-                'call': abi.resolve_type(f.type_name())
+                'call': abi.resolve_type(f.type_)
             })
 
         functions.append({
@@ -92,9 +92,9 @@ def c_source_from_abi(
         })
 
     alias_defs = {}
-    for a in abi.aliases():
-        anew = a.new_type_name()
-        afrom = a.from_type_name()
+    for a in abi.types:
+        anew = a.new_type_name
+        afrom = a.type_
         check_ident(anew, f'alias {anew} -> {afrom}')
         check_ident(afrom, f'alias {anew} -> {afrom}', allow_raw=True)
 
@@ -122,13 +122,13 @@ def c_source_from_abi(
         for new_type_name, from_type_name in alias_defs.items()
     ]
 
-    for enum_meta in abi.enums():
-        ename = enum_meta.name()
+    for var_meta in abi.variants:
+        ename = var_meta.name
         check_ident(ename, f'enum {ename}')
 
         variants = []
         targets = {}
-        for i, variant in enumerate(enum_meta.variants()):
+        for i, variant in enumerate(var_meta.types):
             check_ident(variant, f'enum variant {variant}')
             var_call = abi.resolve_type(variant)
             var_type = var_call.resolved_name
@@ -189,3 +189,20 @@ def c_source_from_abi(
     )
 
     return source
+
+
+def c_source_from_abi(
+    name: str,
+    abi_hash: str,
+    abi: ABIView
+) -> str:
+    try:
+        return try_c_source_from_abi(name, abi_hash, abi)
+
+    except Exception as e:
+        logger.error(
+            'While generating C source:\n'
+            f'\tname: {name}'
+            f'\tabi_hash: {abi_hash}'
+        )
+        raise e

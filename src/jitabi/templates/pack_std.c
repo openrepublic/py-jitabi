@@ -360,3 +360,230 @@ JITABI_INLINE_ALWAYS ssize_t pack_string(PyObject *obj, char *out, size_t out_le
     return len_len + size;
 }
 
+
+// default structs
+
+JITABI_INLINE
+ssize_t pack_asset(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+
+    ssize_t __offset = 0;
+    ssize_t __consumed = 0;
+
+    JITABI_LOG_DEBUG("PACK struct asset:");
+
+
+
+    PyObject *__field = NULL;
+
+
+    {
+        // -------- field "amount": "int64" --------
+
+        JITABI_LOG_DEBUG(
+            "%s: %s",
+            "amount",
+            "int64"
+        );
+
+        __field = PyDict_GetItemString(__obj, "amount");
+        if (!__field) {
+            PyErr_SetString(PyExc_KeyError, "missing field 'amount'");
+            return -1;
+        }
+        __consumed = pack_int64(
+            __field
+            , __dst + __offset
+            , __dst_len - __offset
+        );
+
+        if (__consumed < 0) return -1;
+        __offset += __consumed;
+        JITABI_LOG_DEBUG("amount packed, offset: %lu", __offset);
+    }
+    {
+        // -------- field "symbol": "symbol" --------
+
+        JITABI_LOG_DEBUG(
+            "%s: %s",
+            "symbol",
+            "symbol"
+        );
+
+        __field = PyDict_GetItemString(__obj, "symbol");
+        if (!__field) {
+            PyErr_SetString(PyExc_KeyError, "missing field 'symbol'");
+            return -1;
+        }
+        __consumed = pack_uint64(
+            __field
+            , __dst + __offset
+            , __dst_len - __offset
+        );
+
+        if (__consumed < 0) return -1;
+        __offset += __consumed;
+        JITABI_LOG_DEBUG("symbol packed, offset: %lu", __offset);
+    }
+
+    return __offset;
+}
+
+JITABI_INLINE
+ssize_t pack_extended_asset(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+
+    ssize_t __offset = 0;
+    ssize_t __consumed = 0;
+
+    JITABI_LOG_DEBUG("PACK struct extended_asset:");
+
+
+
+    PyObject *__field = NULL;
+
+
+    {
+        // -------- field "quantity": "asset" --------
+
+        JITABI_LOG_DEBUG(
+            "%s: %s",
+            "quantity",
+            "asset"
+        );
+
+        __field = PyDict_GetItemString(__obj, "quantity");
+        if (!__field) {
+            PyErr_SetString(PyExc_KeyError, "missing field 'quantity'");
+            return -1;
+        }
+        __consumed = pack_asset(
+            __field
+            , __dst + __offset
+            , __dst_len - __offset
+        );
+
+        if (__consumed < 0) return -1;
+        __offset += __consumed;
+        JITABI_LOG_DEBUG("quantity packed, offset: %lu", __offset);
+    }
+    {
+        // -------- field "contract": "name" --------
+
+        JITABI_LOG_DEBUG(
+            "%s: %s",
+            "contract",
+            "name"
+        );
+
+        __field = PyDict_GetItemString(__obj, "contract");
+        if (!__field) {
+            PyErr_SetString(PyExc_KeyError, "missing field 'contract'");
+            return -1;
+        }
+        __consumed = pack_uint64(
+            __field
+            , __dst + __offset
+            , __dst_len - __offset
+        );
+
+        if (__consumed < 0) return -1;
+        __offset += __consumed;
+        JITABI_LOG_DEBUG("contract packed, offset: %lu", __offset);
+    }
+
+    return __offset;
+}
+
+
+// default aliases
+
+JITABI_INLINE
+ssize_t pack_float128(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_raw(__obj, 16, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_name(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_uint64(__obj, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_account_name(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_uint64(__obj, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_symbol(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_uint64(__obj, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_symbol_code(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_uint64(__obj, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_rd160(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_raw(__obj, 20, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_checksum160(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_raw(__obj, 20, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_sha256(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_raw(__obj, 32, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_checksum256(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_raw(__obj, 32, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_checksum512(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_raw(__obj, 64, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_time_point(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_uint64(__obj, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_time_point_sec(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_uint32(__obj, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_block_timestamp_type(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_uint32(__obj, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_public_key(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_raw(__obj, 34, __dst, __dst_len);
+}
+
+JITABI_INLINE
+ssize_t pack_signature(PyObject *__obj, char *__dst, size_t __dst_len)
+{
+    return pack_raw(__obj, 66, __dst, __dst_len);
+}

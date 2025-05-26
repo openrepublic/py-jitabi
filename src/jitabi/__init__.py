@@ -49,10 +49,7 @@ from jitabi.cache import (
     Cache
 )
 from jitabi.compiler import compile_module
-from jitabi.protocol import (
-    ABIView,
-    hash_abi_view
-)
+from jitabi.protocol import ABIDef, ABIView
 
 from jitabi.utils import detect_working_compiler
 
@@ -70,7 +67,7 @@ def hash_abi_for_cache(
     *,
     as_bytes: bool = False
 ) -> str | bytes:
-    abi_hash = hash_abi_view(abi, as_bytes=True)
+    abi_hash = abi.hash(as_bytes=True)
 
     h = hashlib.sha256()
     h.update(codegen.hash_pipeline(as_bytes=True))
@@ -196,7 +193,7 @@ class JITContext:
     def module_for_abi(
         self,
         name: str,
-        abi: ABIView,
+        abi: ABIDef | ABIView,
         *,
         force_reload: bool = False,
         params: dict | ModuleParams = {}
@@ -206,6 +203,7 @@ class JITContext:
 
         '''
         params: ModuleParams = ModuleParams.from_dict(params)
+        abi = ABIView.from_abi(abi)
 
         full_name = self._full_mod_name(name)
         src_hash = hash_abi_for_cache(abi, params)
@@ -234,8 +232,8 @@ class JITContext:
         # store actual ABIView as file
         mod_dir = self.module_dir_for(key)
         mod_dir.mkdir(parents=True, exist_ok=True)
-        abi_location = mod_dir / f'{name}.{abi.filetype}'
-        abi_location.write_text(abi.as_str())
+        abi_location = mod_dir / f'{name}.json'
+        abi_location.write_bytes(abi.definition.as_bytes())
 
         source = self._source_from_abi(
             key, abi, abi_location,

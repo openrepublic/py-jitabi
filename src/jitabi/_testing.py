@@ -18,6 +18,7 @@ import json
 import random
 import string
 import weakref
+import logging
 from types import ModuleType
 from pathlib import Path
 from typing import Iterator
@@ -25,7 +26,6 @@ from typing import Iterator
 from deepdiff import DeepDiff
 
 from jitabi import JITContext
-from jitabi.json import ABI
 from jitabi.utils import JSONHexEncoder, normalize_dict
 from jitabi.cache import CacheKey
 
@@ -34,8 +34,13 @@ from jitabi.protocol import (
     IOTypes,
     is_raw_type,
     is_std_type,
-    ABIView,
+    ABIDef,
+    SHIPABIDef,
+    ABIView
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 inside_ci = any(
@@ -242,10 +247,10 @@ def random_abi_type(
     if is_std_type(res_type):
         return random_std_type(res_type, rng=rng)
 
-    if abi.is_enum_type(res_type):
+    if res_type in abi.variant_map:
         # if type resolved to an enum choose a random variant of it
         enum_type = rng.choice(
-            abi._enum_dict[res_type].variants()
+            abi.variant_map[res_type].types
         )
         # generate the variant obj
         obj = random_abi_type(
@@ -264,7 +269,7 @@ def random_abi_type(
         return obj
 
     # by this point we expect types to be a struct defined in the ABI
-    if not abi.is_struct_type(res_type):
+    if res_type not in abi.struct_map:
         raise TypeError(
             f'Expected {type_name} to resolve to a struct!: {resolved}'
         )
@@ -274,36 +279,34 @@ def random_abi_type(
 
     # if struct has a base, generate it first
     base = (
-        {} if not struct.base()
+        {} if not struct.base
         else random_abi_type(
             abi,
-            struct.base(),
+            struct.base,
             **kwargs
         )
     )
 
-    fields = struct.fields()
-
     # generate actual struct obj from its fields
     obj = base | {
-        f.name(): random_abi_type(
+        f.name: random_abi_type(
             abi,
-            f.type_name(),
+            f.type_,
             **kwargs
         )
-        for f in fields
+        for f in struct.fields
     }
 
     # when object contains fields with the extension modifier ($) we must
     # ensure that after the first None field, all remaining extension fields
     # are also None
     found_extension = False
-    for field, value in zip(fields, list(obj.values())):
-        if field.type_name()[-1] == '$' and not value:
+    for field, value in zip(struct.fields, list(obj.values())):
+        if field.type_[-1] == '$' and not value:
             found_extension = True
 
         if found_extension:
-            obj[field.name()] = None
+            obj[field.name] = None
 
     return obj
 
@@ -328,20 +331,34 @@ testing_abi_dir = tests_dir / 'abis'
 testing_cache_dir =  tests_dir / '.pytest-jitabi'
 
 
-def load_abis(whitelist: list[str] = _default_abi_whitelist) -> list[tuple[str, ABI]]:
-    return [
-        (p.stem, ABI.from_file(p))
-        for p in testing_abi_dir.iterdir()
+def load_abis(whitelist: list[str] = _default_abi_whitelist) -> list[tuple[str, ABIView]]:
+    abis = []
+    for p in testing_abi_dir.iterdir():
         if (
             p.is_file()
             and p.suffix == '.json'
             and p.stem in whitelist
-        )
-    ]
+        ):
+            cls = ABIDef
+            if p.stem == 'standard':
+                cls = SHIPABIDef
+
+            logger.info(f'Loading ABI: {p.stem} using {cls.__name__}')
+
+            try:
+                abis.append((
+                    p.stem, ABIView.from_abi(cls.from_file(p))
+                ))
+
+            except Exception as e:
+                logger.error(f'While loading {p}')
+                raise
+
+    return abis
 
 
 def bootstrap_cache(
-    abis: list[str, ABI] = load_abis(),
+    abis: list[str, ABIView] = load_abis(),
     cache_path: Path = testing_cache_dir,
     force_reload: bool = False
 ) -> None:
@@ -356,7 +373,7 @@ def bootstrap_cache(
 
 
 def iter_type_cases() -> Iterator[
-    tuple[str, ABI, CacheKey, ModuleType, str]
+    tuple[str, ABIView, CacheKey, ModuleType, str]
 ]:
     '''
     Yield (mod_name, abi, cache_key, module, type_name) for every struct / enum.
@@ -390,14 +407,13 @@ def iter_type_cases() -> Iterator[
     for mod_name, abi in abis:
         key, module = modules[mod_name]
         # for every struct or enum
-        for s in abi.structs() + abi.enums():
-            tname = s.name()
+        for s in abi.structs + abi.variants:
             # if no type_whitelist or not whitelisted skip
-            if '*' not in type_whitelist and tname not in type_whitelist:
+            if '*' not in type_whitelist and s.name not in type_whitelist:
                 continue
 
             # yield a test case
-            yield mod_name, abi, key, module, tname
+            yield mod_name, abi, key, module, s.name
 
 
 def measure_leaks_in_call(

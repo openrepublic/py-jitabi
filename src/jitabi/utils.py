@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import os
+import re
 import json
 import sysconfig
 import subprocess
 
 from shutil import which
+
+
+_RAW_TYPE_RE = re.compile(r'^raw\(\d+\)$')
+
+def is_raw_type(name: str) -> bool:
+    return name == 'raw' or _RAW_TYPE_RE.match(name)
 
 
 def normalize_dict(d: dict) -> dict:

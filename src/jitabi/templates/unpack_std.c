@@ -248,3 +248,317 @@ JITABI_INLINE_ALWAYS PyObject *unpack_string (const char *b, size_t buf_len, siz
     if (c) *c = len_consumed + (size_t)l;
     return PyUnicode_DecodeUTF8(b + len_consumed, (Py_ssize_t)l, "strict");
 }
+
+
+// default structs
+
+JITABI_INLINE
+PyObject *unpack_asset(const char *b, size_t buf_len, size_t *c)
+{
+
+    size_t __consumed = 0;
+    size_t __total = 0;
+    #ifdef __JITABI_DEBUG
+    size_t __start_total = 0;
+    #endif
+
+    JITABI_LOG_DEBUG("UNPACK struct asset, buf_len: %lu", buf_len
+    );
+
+
+    // build python dict
+    PyObject *__dict = PyDict_New();
+    if (!__dict) goto error;
+
+    PyObject *____amount = NULL;
+    PyObject *____symbol = NULL;
+
+    // -------- field "amount": "int64" --------
+
+    JITABI_LOG_DEBUG(
+        "%s: %s",
+        "amount",
+        "int64"
+    );
+
+    ____amount = unpack_int64(
+        b + __total,
+        buf_len - __total,
+        &__consumed
+    );
+
+    if (!____amount) goto error;
+    __total += __consumed;
+
+    JITABI_LOG_DEBUG(
+        "amount start: %lu, size: %lu, total: %lu",
+        __start_total,
+        __total - __start_total,
+        __total
+    );
+
+    // -------- field "symbol": "symbol" --------
+
+    JITABI_LOG_DEBUG(
+        "%s: %s",
+        "symbol",
+        "symbol"
+    );
+
+    ____symbol = unpack_uint64(
+        b + __total,
+        buf_len - __total,
+        &__consumed
+    );
+
+    if (!____symbol) goto error;
+    __total += __consumed;
+
+    JITABI_LOG_DEBUG(
+        "symbol start: %lu, size: %lu, total: %lu",
+        __start_total,
+        __total - __start_total,
+        __total
+    );
+
+    // -------- end of fields unpacking ---------
+
+    // set total bytes consumed
+    if (c) *c = __total;
+
+    // set items
+    if (PyDict_SetItemString(__dict, "amount", ____amount) < 0) goto error;
+    if (PyDict_SetItemString(__dict, "symbol", ____symbol) < 0) goto error;
+
+    JITABI_LOG_DEBUG("fields set on dict");
+
+    // drop local refs now owned by dict
+    Py_DECREF(____amount);
+    Py_DECREF(____symbol);
+    return __dict;
+
+error:
+    PyErr_SetString(PyExc_RuntimeError, "While unpacking asset");
+    Py_XDECREF(____amount);
+    Py_XDECREF(____symbol);
+    Py_XDECREF(__dict);
+    return NULL;
+
+}
+
+JITABI_INLINE
+PyObject *unpack_extended_asset(const char *b, size_t buf_len, size_t *c)
+{
+
+    size_t __consumed = 0;
+    size_t __total = 0;
+    #ifdef __JITABI_DEBUG
+    size_t __start_total = 0;
+    #endif
+
+    JITABI_LOG_DEBUG("UNPACK struct extended_asset, buf_len: %lu", buf_len
+    );
+
+
+    // build python dict
+    PyObject *__dict = PyDict_New();
+    if (!__dict) goto error;
+
+    PyObject *____quantity = NULL;
+    PyObject *____contract = NULL;
+
+    // -------- field "quantity": "asset" --------
+
+    JITABI_LOG_DEBUG(
+        "%s: %s",
+        "quantity",
+        "asset"
+    );
+
+    ____quantity = unpack_asset(
+        b + __total,
+        buf_len - __total,
+        &__consumed
+    );
+
+    if (!____quantity) goto error;
+    __total += __consumed;
+
+    JITABI_LOG_DEBUG(
+        "quantity start: %lu, size: %lu, total: %lu",
+        __start_total,
+        __total - __start_total,
+        __total
+    );
+
+    // -------- field "contract": "name" --------
+
+    JITABI_LOG_DEBUG(
+        "%s: %s",
+        "contract",
+        "name"
+    );
+
+    ____contract = unpack_uint64(
+        b + __total,
+        buf_len - __total,
+        &__consumed
+    );
+
+    if (!____contract) goto error;
+    __total += __consumed;
+
+    JITABI_LOG_DEBUG(
+        "contract start: %lu, size: %lu, total: %lu",
+        __start_total,
+        __total - __start_total,
+        __total
+    );
+
+    // -------- end of fields unpacking ---------
+
+    // set total bytes consumed
+    if (c) *c = __total;
+
+    // set items
+    if (PyDict_SetItemString(__dict, "quantity", ____quantity) < 0) goto error;
+    if (PyDict_SetItemString(__dict, "contract", ____contract) < 0) goto error;
+
+    JITABI_LOG_DEBUG("fields set on dict");
+
+    // drop local refs now owned by dict
+    Py_DECREF(____quantity);
+    Py_DECREF(____contract);
+    return __dict;
+
+error:
+    PyErr_SetString(PyExc_RuntimeError, "While unpacking extended_asset");
+    Py_XDECREF(____quantity);
+    Py_XDECREF(____contract);
+    Py_XDECREF(__dict);
+    return NULL;
+
+}
+
+
+// default aliases
+
+JITABI_INLINE
+PyObject *unpack_float128(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_raw(
+        __buf, 16, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_name(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_uint64(
+        __buf, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_account_name(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_uint64(
+        __buf, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_symbol(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_uint64(
+        __buf, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_symbol_code(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_uint64(
+        __buf, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_rd160(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_raw(
+        __buf, 20, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_checksum160(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_raw(
+        __buf, 20, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_sha256(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_raw(
+        __buf, 32, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_checksum256(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_raw(
+        __buf, 32, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_checksum512(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_raw(
+        __buf, 64, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_time_point(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_uint64(
+        __buf, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_time_point_sec(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_uint32(
+        __buf, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_block_timestamp_type(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_uint32(
+        __buf, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_public_key(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_raw(
+        __buf, 34, __buf_len, __consumed
+    );
+}
+
+JITABI_INLINE
+PyObject *unpack_signature(const char *__buf, size_t __buf_len, size_t *__consumed)
+{
+    return unpack_raw(
+        __buf, 66, __buf_len, __consumed
+    );
+}

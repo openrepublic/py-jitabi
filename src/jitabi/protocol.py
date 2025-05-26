@@ -15,13 +15,27 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
-import re
-import random
 import hashlib
 
 from enum import Enum
-from typing import Protocol, runtime_checkable
-from dataclasses import dataclass
+from pathlib import Path
+
+import msgspec
+
+from frozendict import frozendict
+from msgspec import (
+    Struct,
+    field,
+    to_builtins,
+)
+
+from jitabi.utils import is_raw_type
+from jitabi.sanitize import (
+    AntelopeName,
+    BaseTypeName,
+    TypeName,
+    FieldName
+)
 
 
 # input/output types, these are valid inputs for pack_* & valid outputs for
@@ -32,7 +46,7 @@ IOTypes = (
 
 
 # base types which module.c.j2 already has serialization functions for
-STD_TYPES = [
+STD_TYPES = set([
     'bool',
     'uint8',
     'uint16',
@@ -50,12 +64,7 @@ STD_TYPES = [
     'float64',
     'bytes',
     'string',
-]
-
-_RAW_TYPE_RE = re.compile(r'^raw\(\d+\)$')
-
-def is_raw_type(name: str) -> bool:
-    return name == 'raw' or _RAW_TYPE_RE.match(name)
+])
 
 
 def extract_type_params(name: str) -> list[str]:
@@ -76,39 +85,160 @@ def is_std_type(name: str) -> bool:
     return name in STD_TYPES
 
 
-# extra structs added to all abi modules
-DEFAULT_STRUCTS = [
-    {
-      'name': 'asset',
-      'fields': [
-        {
-          'name': 'amount',
-          'type': 'int64'
-        },
-        {
-          'name': 'symbol',
-          'type': 'symbol'
-        }
-      ]
-    },
-    {
-      'name': 'extended_asset',
-      'fields': [
-        {
-          'name': 'quantity',
-          'type': 'asset'
-        },
-        {
-          'name': 'contract',
-          'type': 'name'
-        }
-      ]
-    },
-]
+class TypeModifier(Enum):
+    NONE = 0,
+    ARRAY = 1,
+    OPTIONAL = 2,
+    EXTENSION = 3
 
+
+class AliasDef(Struct, frozen=True):
+    new_type_name: TypeName
+    type_: TypeName = field(name='type')
+
+
+class VariantDef(Struct, frozen=True):
+    name: TypeName
+    types: list[TypeName]
+
+
+class FieldDef(Struct, frozen=True):
+    name: FieldName
+    type_: TypeName = field(name='type')
+
+
+class StructDef(Struct, frozen=True):
+    name: TypeName
+    fields: list[FieldDef]
+    base: BaseTypeName | None = None
+
+
+class ActionDef(Struct, frozen=True):
+    name: AntelopeName
+    type_: TypeName = field(name='type')
+    ricardian_contract: str
+
+
+class TableDef(Struct, frozen=True):
+    name: AntelopeName
+    key_names: list[FieldName]
+    key_types: list[TypeName]
+    index_type: TypeName
+    type_: TypeName = field(name='type')
+
+
+class SHIPTableDef(Struct, frozen=True):
+    name: str
+    key_names: list[FieldName]
+    type_: TypeName = field(name='type')
+
+
+class ClauseDef(Struct, frozen=True):
+    id: str
+    body: str
+
+
+class ErrorMessageDef(Struct, frozen=True):
+    error_code: int
+    error_msg: str
+
+class ActionResultDef(Struct, frozen=True):
+    name: AntelopeName
+    result_type: TypeName
+
+
+class ABIDef(Struct, frozen=True):
+    '''
+    Msgspec compatible AntelopeIO ABI definition
+
+    See AntelopeIO/leap abi_def.hpp:
+        - https://github.com/AntelopeIO/leap/blob/92b6fec5e949660bae78e90ebf555fe71ab06940/libraries/chain/include/eosio/chain/abi_def.hpp
+
+    '''
+    version: str
+    types: list[AliasDef]
+    structs: list[StructDef]
+    variants: list[VariantDef] = []
+
+    abi_extensions: list = []
+    actions: list[ActionDef] = []
+    tables: list[TableDef] = []
+    ricardian_clauses: list[ClauseDef] = []
+    error_messages: list[ErrorMessageDef] = []
+    action_results: list[ActionResultDef] = []
+
+    @staticmethod
+    def from_str(s: str) -> ABIDef:
+        return msgspec.json.decode(s, type=ABIDef)
+
+    @staticmethod
+    def from_file(p: Path | str) -> ABIDef:
+        return ABIDef.from_str(
+            Path(p).read_text()
+        )
+
+    def as_dict(self) -> dict:
+        return to_builtins(self)
+
+    def as_bytes(self) -> bytes:
+        return msgspec.json.encode(self)
+
+
+class SHIPABIDef(Struct, frozen=True):
+    '''
+    Specific ABI definition used by SHIP plugin as first message of websocket
+    session.
+
+    '''
+    version: str
+    structs: list[StructDef]
+    types: list[AliasDef]
+    variants: list[VariantDef] = []
+    tables: list[SHIPTableDef] = []
+
+    @staticmethod
+    def from_str(s: str) -> SHIPABIDef:
+        return msgspec.json.decode(s, type=SHIPABIDef)
+
+    @staticmethod
+    def from_file(p: Path | str) -> SHIPABIDef:
+        return SHIPABIDef.from_str(
+            Path(p).read_text()
+        )
+
+    def as_dict(self) -> dict:
+        return to_builtins(self)
+
+    def as_bytes(self) -> bytes:
+        return msgspec.json.encode(self)
+
+
+# builtin types
+# see: https://github.com/AntelopeIO/leap/blob/92b6fec5e949660bae78e90ebf555fe71ab06940/libraries/chain/abi_serializer.cpp#L89
+
+# extra structs added to all abi modules
+BUILTIN_STRUCTS: frozendict[TypeName, StructDef] = frozendict({
+    s['name']: msgspec.convert(s, type=StructDef)
+    for s in [
+        {
+            'name': 'asset',
+            'fields': [
+                {'name': 'amount', 'type': 'int64'},
+                {'name': 'symbol', 'type': 'symbol'}
+            ]
+        },
+        {
+            'name': 'extended_asset',
+            'fields': [
+                {'name': 'quantity', 'type': 'asset'},
+                {'name': 'contract', 'type': 'name'}
+            ]
+        },
+    ]
+})
 
 # extra aliases added to all abi modules
-DEFAULT_ALIASES: dict[str, str] = {
+BUILTIN_ALIASES: frozendict[TypeName, str] = frozendict({
     'float128': 'raw(16)',
     'name': 'uint64',
     'account_name': 'uint64',
@@ -124,163 +254,168 @@ DEFAULT_ALIASES: dict[str, str] = {
     'block_timestamp_type': 'uint32',
     'public_key': 'raw(34)',
     'signature': 'raw(66)',
-}
+})
 
 
-# generate a hash of all the default types which is used as seed for all
-# abi view hashes, that way if std types change, we will get a different hash
-h = hashlib.sha256()
+class ABIResolvedType(Struct, frozen=True):
+    '''
+    Return type of ABIView.resolve_type, contains metadata about an ABI type
 
-for std_type in STD_TYPES:
-    h.update(std_type.encode())
-
-for struct_def in DEFAULT_STRUCTS:
-    h.update(struct_def['name'].encode())
-    if struct_def.get('base'):
-        h.update(struct_def['base'].encode())
-    for field in struct_def['fields']:
-        h.update(field['name'].encode())
-        h.update(field['type'].encode())
-
-for new_type, from_type in DEFAULT_ALIASES.items():
-    h.update(new_type.encode())
-    h.update(from_type.encode())
-
-
-DEFAULT_HASH = h.digest()
-
-
-# ABIView protocol
-
-class TypeModifier(Enum):
-    NONE = 0,
-    ARRAY = 1,
-    OPTIONAL = 2,
-    EXTENSION = 3
-
-
-@runtime_checkable
-class AliasDef(Protocol):
-    def new_type_name(self) -> str:
-        ...
-
-    def from_type_name(self) -> str:
-        ...
-
-
-@runtime_checkable
-class EnumDef(Protocol):
-    def name(self) -> str:
-        ...
-
-
-    def variants(self) -> list[str]:
-        ...
-
-
-@runtime_checkable
-class FieldDef(Protocol):
-    def name(self) -> str:
-        ...
-
-    def type_name(self) -> str:
-        ...
-
-
-@runtime_checkable
-class StructDef(Protocol):
-    def name(self) -> str:
-        ...
-
-    def base(self) -> str:
-        ...
-
-    def fields(self) -> list[FieldDef]:
-        ...
-
-
-@dataclass(frozen=True)
-class ABIResolvedType:
-    original_name: str
+    '''
+    original_name: TypeName
     resolved_name: str
     args: list[str]
     is_std: bool
     modifier: TypeModifier
 
 
-@runtime_checkable
-class ABIView(Protocol):
-    filetype: str
+class ABIView:
 
-    struct_map: dict[str, StructDef]
+    _def: ABIDef | SHIPABIDef
 
-    def aliases(self) -> list[AliasDef]:
-        ...
+    alias_map: frozendict[TypeName, TypeName]
+    variant_map: frozendict[TypeName, VariantDef]
+    struct_map: frozendict[TypeName, StructDef]
+    valid_types: frozenset[TypeName]
 
-    def enums(self) -> list[EnumDef]:
-        ...
+    def __init__(
+        self,
+        definition: ABIDef | SHIPABIDef
+    ):
+        self._def = definition
 
-    def structs(self) -> list[StructDef]:
-        ...
+        alias_map = {
+            a.new_type_name: a.type_
+            for a in definition.types
+        }
+        alias_map.update(BUILTIN_ALIASES)
 
-    def valid_types(self) -> set[str]:
-        ...
+        variant_map = {
+            e.name: e
+            for e in definition.variants
+        }
 
-    def is_valid_type(self, name: str) -> bool:
-        ...
+        struct_map = {
+            s.name: s
+            for s in definition.structs
+        }
+        struct_map.update(BUILTIN_STRUCTS)
 
-    def is_enum_type(self, name: str) -> bool:
-        ...
-
-    def is_struct_type(self, name: str) -> bool:
-        ...
-
-    def maybe_resolve_alias(self, name: str) -> str | None:
-        ...
-
-    def resolve_type(self, name: str) -> ABIResolvedType:
-        ...
+        self.alias_map = frozendict(alias_map)
+        self.struct_map = frozendict(struct_map)
+        self.variant_map = frozendict(variant_map)
+        self.valid_types = frozenset([
+            *STD_TYPES,
+            *list(struct_map.keys()),
+            *list(variant_map.keys()),
+            *list(alias_map.keys()),
+        ])
 
     @staticmethod
     def from_str(s: str) -> ABIView:
-        ...
+        return ABIView(ABIDef.from_str(s))
 
-    def as_str(self) -> str:
-        ...
+    @staticmethod
+    def from_file(p: Path | str) -> ABIView:
+        return ABIView(ABIDef.from_file(p))
 
+    @staticmethod
+    def from_abi(abi: ABIDef | SHIPABIDef | ABIView) -> ABIView:
+        if isinstance(abi, ABIView):
+            return abi
 
-# generic ABIView helpers
+        return ABIView(abi)
 
+    @property
+    def definition(self) -> ABIDef:
+        return self._def
 
-def hash_abi_view(abi: ABIView, *, as_bytes: bool = False) -> str | bytes:
-    '''
-    Get a sha256 of the types definition
+    @property
+    def structs(self) -> list[StructDef]:
+        return self._def.structs
 
-    '''
-    h = hashlib.sha256()
+    @property
+    def types(self) -> list[AliasDef]:
+        return self._def.types
 
-    h.update(b'structs')
-    for s in abi.structs():
-        h.update(s.name().encode())
-        for f in s.fields():
-            h.update(f.name().encode())
-            h.update(f.type_name().encode())
+    @property
+    def variants(self) -> list[VariantDef]:
+        return self._def.variants
 
-    h.update(b'enums')
-    for e in abi.enums():
-        h.update(e.name().encode())
-        for v in e.variants():
-            h.update(v.encode())
+    def is_valid_type(self, name: str) -> bool:
+        return (
+            name in self.valid_types
+            or
+            is_raw_type(name)
+        )
 
-    h.update(b'aliases')
-    for a in abi.aliases():
-        h.update(a.new_type_name().encode())
-        h.update(a.from_type_name().encode())
+    def maybe_resolve_alias(self, name: str) -> str | None:
+        return self.alias_map.get(name, None)
 
-    return (
-        h.digest() if as_bytes
-        else h.hexdigest()
-    )
+    def resolve_type(self, name: str) -> ABIResolvedType:
+        maybe_resolved = self.maybe_resolve_alias(name)
+        if maybe_resolved:
+            resolved = self.resolve_type(maybe_resolved)
+            return ABIResolvedType(
+                original_name=name,
+                resolved_name=resolved.resolved_name,
+                args=resolved.args,
+                is_std=resolved.is_std,
+                modifier=resolved.modifier
+            )
+
+        og_name = name
+
+        args: list[str] = []
+        if is_raw_type(name):
+            args = extract_type_params(name)
+            name = 'raw'
+
+        unmod_name, modifier = maybe_extract_type_mods(name)
+
+        if not self.is_valid_type(unmod_name):
+            raise TypeError(
+                f'{og_name}(resolved: {unmod_name}) not a valid type!:\n'
+                f'{self.valid_types}'
+            )
+
+        return ABIResolvedType(
+            original_name=og_name,
+            resolved_name=unmod_name,
+            args=args,
+            is_std=is_std_type(unmod_name),
+            modifier=modifier
+        )
+
+    def hash(self, *, as_bytes: bool = False) -> str | bytes:
+        '''
+        Get a sha256 of the types definition
+
+        '''
+        h = hashlib.sha256()
+
+        h.update(b'structs')
+        for s in self._def.structs:
+            h.update(s.name.encode())
+            for f in s.fields:
+                h.update(f.name.encode())
+                h.update(f.type_.encode())
+
+        h.update(b'enums')
+        for e in self._def.variants:
+            h.update(e.name.encode())
+            for v in e.types:
+                h.update(v.encode())
+
+        h.update(b'aliases')
+        for a in self._def.types:
+            h.update(a.new_type_name.encode())
+            h.update(a.type_.encode())
+
+        return (
+            h.digest() if as_bytes
+            else h.hexdigest()
+        )
 
 
 def maybe_extract_type_mods(name: str) -> tuple[str, TypeModifier]:
