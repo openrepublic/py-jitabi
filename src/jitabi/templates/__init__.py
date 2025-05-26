@@ -7,12 +7,20 @@ import hashlib
 
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import (
+    Environment,
+    FileSystemLoader,
+    StrictUndefined
+)
 
 
 TEMPLATE_DIR = Path(__file__).parent
 
-env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=False)
+env = Environment(
+    loader=FileSystemLoader(TEMPLATE_DIR),
+    undefined=StrictUndefined,
+    autoescape=False
+)
 
 # Template objects
 module_tmpl = env.get_template('module.c.j2')

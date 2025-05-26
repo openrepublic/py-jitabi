@@ -67,7 +67,7 @@ def import_module(
 
 
 default_param_debug: bool = False
-default_param_inlined: bool = True
+default_param_inlined: bool = False
 default_param_with_pack: bool = True
 default_param_with_unpack: bool = True
 

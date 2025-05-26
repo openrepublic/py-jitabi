@@ -224,13 +224,12 @@ class JITContext:
                 )
                 return key, module
 
-        elif module:
-            if self.is_readonly:
-                raise RuntimeError('Module not cached and in read only context!')
+        if self.is_readonly:
+            raise RuntimeError('Module not cached and in read only context!')
 
-            # user requested disk reload & module already existed
-            # increment mod name to trigger full re-import
-            self._inc_mod_name(name)
+        # user requested disk reload & module already existed
+        # increment mod name to trigger full re-import
+        self._inc_mod_name(name)
 
         # store actual ABIView as file
         mod_dir = self.module_dir_for(key)

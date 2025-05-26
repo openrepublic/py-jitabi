@@ -214,33 +214,53 @@ class ABI(ABIView):
     def random_of(
         self,
         type_name: str,
+        min_list_size: int = 0,
         max_list_size: int = 2,
+        list_delta: int = 0,
         chance_of_none: float = 0.5,
         chance_delta: float = 0.5,
+        type_args: dict[str, dict] = {},
         rng: random.Random  = random
     ) -> IOTypes:
         resolved = self.resolve_type(type_name)
         res_type = resolved.resolved_name
 
+        kwargs = {
+            'min_list_size': min_list_size,
+            'max_list_size': max_list_size,
+            'list_delta': list_delta,
+            'chance_of_none': chance_of_none,
+            'chance_delta': chance_delta,
+            'type_args': type_args,
+            'rng': rng
+        }
+
+        if type_name in type_args:
+            kwargs |= type_args[type_name]
+
         match resolved.modifier:
             case TypeModifier.ARRAY:
+                pre_min_size = kwargs['min_list_size']
+                pre_max_size = kwargs['max_list_size']
+                kwargs['min_list_size'] = max(kwargs['min_list_size'] - kwargs['list_delta'], 0)
+                kwargs['max_list_size'] = max(kwargs['max_list_size'] - kwargs['list_delta'], 0)
                 return [
-                    self.random_of(res_type, rng=rng)
-                    for _ in range(max_list_size)
+                    self.random_of(res_type, **kwargs)
+                    for _ in range(
+                        rng.randint(pre_min_size, pre_max_size)
+                    )
                 ]
 
             case TypeModifier.OPTIONAL | TypeModifier.EXTENSION:
                 if rng.random() < 1. - chance_of_none:
                     return None
 
-                return self.random_of(
-                    res_type,
-                    chance_of_none=min(
-                        1.,
-                        chance_of_none + chance_delta
-                    ),
-                    rng=rng
+                kwargs['chance_of_none'] = min(
+                    1.,
+                    chance_of_none + chance_delta
                 )
+
+                return self.random_of(res_type, **kwargs)
 
         if is_raw_type(res_type):
             return jitabi._testing.random_std_type('raw(' + resolved.args[0] + ')', rng=rng)
@@ -252,7 +272,10 @@ class ABI(ABIView):
             enum_type = rng.choice(
                 self._enum_dict[res_type].variants()
             )
-            obj = self.random_of(enum_type, rng=rng)
+            obj = self.random_of(
+                enum_type,
+                **kwargs
+            )
             if isinstance(obj, dict):
                 return {
                     'type': enum_type,
@@ -270,13 +293,19 @@ class ABI(ABIView):
 
         base = (
             {} if not struct.base()
-            else self.random_of(struct.base(), rng=rng)
+            else self.random_of(
+                struct.base(),
+                **kwargs
+            )
         )
 
         fields = struct.fields()
 
         obj = base | {
-            f.name(): self.random_of(f.type_name(), rng=rng)
+            f.name(): self.random_of(
+                f.type_name(),
+                **kwargs
+            )
             for f in fields
         }
 

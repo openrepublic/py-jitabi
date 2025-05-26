@@ -30,7 +30,7 @@ from jitabi.utils import JSONHexEncoder, normalize_dict
 from jitabi.cache import CacheKey
 
 
-INSIDE_CI = any(
+inside_ci = any(
     os.getenv(v)
     for v in [
         'CI', 'GITHUB_ACTIONS', 'GITLAB_CI', 'TRAVIS', 'CIRCLECI'
@@ -163,7 +163,7 @@ def assert_dict_eq(a: dict, b: dict):
 
 # stuff used in our tests
 
-default_max_examples: int = 10 if INSIDE_CI else 100
+default_max_examples: int = 10 if inside_ci else 100
 default_test_deadline: int = 5 * 60 * 1000  # 5 min in ms
 
 # abi jsons on tests/abis

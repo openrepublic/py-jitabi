@@ -320,7 +320,7 @@ PyObject *py_unpack(PyObject *self, PyObject *const *args, Py_ssize_t nargs)
 
 #ifdef __JITABI_PACK
 
-#define JITABI_PACK_INITIAL_BUF_SIZE (8 * 1024)
+#define JITABI_PACK_INITIAL_BUF_SIZE (8 * 1024 * 1024)
 
 {% include "pack_std.c" %}
 

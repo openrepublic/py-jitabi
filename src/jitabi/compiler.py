@@ -1,4 +1,3 @@
-
 # py-jitabi: Create JIT compiled CPython modules from antelope protocol ABIs
 # Copyright 2025-eternity Guillermo Rodriguez
 
@@ -56,6 +55,12 @@ def _compile_with_distutils(
     '''
     cc = ccompiler.new_compiler()
     sysconfig.customize_compiler(cc)
+
+    # strip out any -DNDEBUG that came in via Python’s CFLAGS
+    for attr in ('compiler', 'compiler_so'):
+        flags = getattr(cc, attr, None)
+        if isinstance(flags, list):
+            setattr(cc, attr, [f for f in flags if f != '-DNDEBUG'])
 
     is_unix: bool = cc.compiler_type == 'unix'
 

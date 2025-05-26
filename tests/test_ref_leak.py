@@ -14,12 +14,26 @@ from hypothesis import (
 
 from jitabi.utils import JSONHexEncoder
 from jitabi._testing import (
-    INSIDE_CI,
+    inside_ci,
     default_max_examples,
     default_test_deadline,
     measure_leaks_in_call,
     iter_type_cases
 )
+
+
+if inside_ci:
+    pytest.skip(
+        'leak test cant be run on CI',
+        allow_module_level=True
+    )
+
+if not hasattr(sys, 'gettotalrefcount'):
+    pytest.skip(
+        'leak test requires sys.gettotalrefcount '
+        '(only available in debug CPython builds)',
+        allow_module_level=True
+    )
 
 
 logger = logging.getLogger(__name__)
@@ -33,13 +47,6 @@ max_examples = int(os.getenv('JITABI_MAX_EXAMPLES', default_max_examples))
 trials: int = int(os.getenv('JITABI_TRIALS', str(100)))
 
 
-@pytest.mark.skipif(
-    INSIDE_CI or not hasattr(sys, 'gettotalrefcount'),
-    reason=(
-        'leak test requires sys.gettotalrefcount '
-        '(only available in debug CPython builds)'
-    )
-)
 @pytest.mark.parametrize('case_info', iter_type_cases())
 @given(rng=st.randoms())
 @settings(

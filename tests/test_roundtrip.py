@@ -3,7 +3,12 @@ import json
 import logging
 
 import pytest
-from hypothesis import event, given, settings, strategies as st
+from hypothesis import (
+    event,
+    given,
+    settings,
+    strategies as st
+)
 
 from jitabi.utils import JSONHexEncoder
 from jitabi._testing import (

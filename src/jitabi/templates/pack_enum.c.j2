@@ -90,7 +90,7 @@ validate:
     if (__var_index == {{ loop.index0 }}) {
         __inner = {{ pack_fn(v.call) }}
         if (__inner < 0) {
-            PyErr_SetString(PyExc_TypeError, "variant {{ v.original_name }} pack fn raised");
+            PyErr_SetString(PyExc_TypeError, "variant {{ v.call.original_name }} pack fn raised");
             return -1;
         }
         return __varint_len + __inner;
