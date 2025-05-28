@@ -29,6 +29,7 @@ disk so that subsequent interpreter sessions can reuse them.
 '''
 from __future__ import annotations
 
+import os
 import json
 import logging
 import sysconfig
@@ -36,7 +37,13 @@ import importlib
 
 from types import ModuleType
 from pathlib import Path
+from contextlib import contextmanager as cm
 from dataclasses import dataclass
+
+from jitabi.utils import (
+    fd_lock,
+    fd_unlock
+)
 
 
 logger = logging.getLogger(__name__)
@@ -103,7 +110,7 @@ class ModuleParams:
     def default() -> ModuleParams:
         return ModuleParams(
             debug=default_param_debug,
-            with_pack=default_param_with_pack,
+    with_pack=default_param_with_pack,
             with_unpack=default_param_with_unpack
         )
 
@@ -156,16 +163,66 @@ class Cache:
 
     def __init__(
         self,
-        fs_location: Path | str | None = None
+        fs_location: Path | str | None = None,
+        readonly: bool = False,
+        ipc_locked: bool = True
+
     ):
         self.fs_location = (
             Path(fs_location) if fs_location else DEFAULT_CACHE_PATH
         )
-        self.fs_location.mkdir(parents=True, exist_ok=True)
+        self.readonly = readonly
+        self.ipc_locked = ipc_locked
+
+        if not readonly:
+            self.fs_location.mkdir(parents=True, exist_ok=True)
+
+        else:
+            if not self.fs_location.is_dir():
+                raise RuntimeError(
+                    f'Cache dir at {self.fs_location} not present and readonly=True'
+                )
+
         logger.info(f'Using cache directory {self.fs_location}')
 
         self._cache = {}
         self._warm_from_disk()
+
+    @cm
+    def _dir_lock_ipc(self, path: Path | str, *, shared: bool = False):
+        '''
+        Context-manager that holds a POSIX/Win32 lock on <path>/.lock
+
+        Use `shared=True` for read-only operations (LOCK_SH),
+        `shared=False` for writers (LOCK_EX).
+
+        '''
+        lock_path = Path(path) / '.lock'
+        # 'a+' so the file is created if missing but we don't truncate it
+        fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            fd_lock(fd, exclusive=not shared)
+            yield
+        finally:
+            fd_unlock(fd)
+            os.close(fd)
+
+    @cm
+    def dir_lock(self, path: Path | str, *, shared: bool = False):
+        '''
+        Context-manager that holds a POSIX/Win32 lock on <path>/.lock
+
+        Use `shared=True` for read-only operations (LOCK_SH),
+        `shared=False` for writers (LOCK_EX).
+
+        '''
+        if self.ipc_locked:
+            with self._dir_lock_ipc(path, shared=shared):
+                yield
+
+            return
+
+        yield
 
     def _warm_from_disk(self) -> None:
         '''
@@ -181,67 +238,68 @@ class Cache:
                 if not src_hash_dir.is_dir():
                     continue
 
-                src_hash = src_hash_dir.name
+                with self.dir_lock(src_hash_dir):
+                    src_hash = src_hash_dir.name
 
-                # load params
-                params_path = src_hash_dir / 'params.json'
-                if not params_path.is_file():
-                    logger.warning(
-                        f'Could not load params file for {mod_name} (hash {src_hash}),'
-                        ' skipping module cache...'
-                    )
-                    continue
-
-                params = json.loads(params_path.read_text())
-
-                if (
-                    'debug' not in params
-                    or
-                    'with_pack' not in params
-                    or
-                    'with_unpack' not in params
-                ):
-                    logger.warning(
-                        f'Malformed params file for {mod_name} (hash {src_hash}), '
-                        ' skipping module cache...'
-                    )
-                    continue
-
-                key: CacheKey = CacheKey(
-                    mod_name=mod_name,
-                    src_hash=src_hash,
-                    params=ModuleParams(**params)
-                )
-                module: ModuleType | None = None
-
-                # load C source if present
-                src_path = src_hash_dir / f'{mod_name}.c'
-                if src_path.is_file():
-                    source = src_path.read_text()
-                    logger.debug(
-                        f'Loaded source for {str(key)})'
-                    )
-
-                else:
-                    logger.warning(
-                        f'Source not found for {key}, skipping load...'
-                    )
-                    continue
-
-                # load compiled module if present
-                mod_path = src_hash_dir / f'{mod_name}{EXT_SUFFIX}'
-                if mod_path.is_file():
-                    try:
-                        module = import_module(mod_name, mod_path)
-                        logger.debug(
-                            f'Loaded compiled module for {str(key)})'
-                        )
-
-                    except Exception:
-                        logger.exception(
-                            f'Failed to import cached module {str(key)})'
+                    # load params
+                    params_path = src_hash_dir / 'params.json'
+                    if not params_path.is_file():
+                        logger.warning(
+                            f'Could not load params file for {mod_name} (hash {src_hash}),'
+                            ' skipping module cache...'
                         )
                         continue
+
+                    params = json.loads(params_path.read_text())
+
+                    if (
+                        'debug' not in params
+                        or
+                        'with_pack' not in params
+                        or
+                        'with_unpack' not in params
+                    ):
+                        logger.warning(
+                            f'Malformed params file for {mod_name} (hash {src_hash}), '
+                            ' skipping module cache...'
+                        )
+                        continue
+
+                    key: CacheKey = CacheKey(
+                        mod_name=mod_name,
+                        src_hash=src_hash,
+                        params=ModuleParams(**params)
+                    )
+                    module: ModuleType | None = None
+
+                    # load C source if present
+                    src_path = src_hash_dir / f'{mod_name}.c'
+                    if src_path.is_file():
+                        source = src_path.read_text()
+                        logger.debug(
+                            f'Loaded source for {str(key)})'
+                        )
+
+                    else:
+                        logger.warning(
+                            f'Source not found for {key}, skipping load...'
+                        )
+                        continue
+
+                    # load compiled module if present
+                    mod_path = src_hash_dir / f'{mod_name}{EXT_SUFFIX}'
+                    if mod_path.is_file():
+                        try:
+                            module = import_module(mod_name, mod_path)
+                            logger.debug(
+                                f'Loaded compiled module for {str(key)})'
+                            )
+
+                        except Exception:
+                            logger.exception(
+                                f'Failed to import cached module {str(key)})'
+                            )
+                            continue
 
                 self._cache[key] = CacheEntry(
                     source=source,
@@ -270,13 +328,14 @@ class Cache:
 
         module_path = self.get_module_path(key)
 
-        src_path = module_path / f'{key.mod_name}.c'
-        if src_path.is_file():
-            logger.debug(f'Reading C source for {key} from {src_path}')
-            source = src_path.read_text()
-            self._cache.setdefault(key, CacheEntry.from_source(source)).source = source
+        with self.dir_lock(module_path):
+            src_path = module_path / f'{key.mod_name}.c'
+            if src_path.is_file():
+                logger.debug(f'Reading C source for {key} from {src_path}')
+                source = src_path.read_text()
+                self._cache.setdefault(key, CacheEntry.from_source(source)).source = source
 
-            return source
+                return source
 
         return None
 
@@ -289,12 +348,18 @@ class Cache:
         Write *source* to disk and cache it in‑memory.
 
         '''
+        if self.readonly:
+            raise RuntimeError(
+                f'Tried to set ABI ({key}) sources using a readonly Cache!'
+            )
+
         logger.debug(f'Storing sources for {key}')
         self._cache.setdefault(key, CacheEntry.from_source(source)).source = source
 
         src_dir = self.get_module_path(key)
         src_dir.mkdir(parents=True, exist_ok=True)
-        (src_dir / f'{key.mod_name}.c').write_text(source)
+        with self.dir_lock(src_dir, shared=False):
+            (src_dir / f'{key.mod_name}.c').write_text(source)
 
     def get_module(
         self,
@@ -315,17 +380,19 @@ class Cache:
                 logger.debug(f'Returning in‑memory module for {key}')
                 return entry.module
 
-        mod_path = self.get_module_path(key) / f'{key.mod_name}{EXT_SUFFIX}'
-        if not mod_path.is_file():
-            logger.warning(f'Compiled module not found on disk for {key}')
-            return None
+        mod_dir_path = self.get_module_path(key)
+        with self.dir_lock(mod_dir_path):
+            mod_path = mod_dir_path / f'{key.mod_name}{EXT_SUFFIX}'
+            if not mod_path.is_file():
+                logger.warning(f'Compiled module not found on disk for {key}')
+                return None
 
-        try:
-            module = import_module(key.mod_name, mod_path)
+            try:
+                module = import_module(key.mod_name, mod_path)
 
-        except Exception:
-            logger.exception(f'Failed to import module {mod_path}')
-            return None
+            except Exception:
+                logger.exception(f'Failed to import module {mod_path}')
+                return None
 
-        self._cache.setdefault(key, CacheEntry.from_source(entry.source)).module = module
-        return module
+            self._cache.setdefault(key, CacheEntry.from_source(entry.source)).module = module
+            return module

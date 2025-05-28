@@ -84,11 +84,9 @@ packed_sample: bytes = std.pack_signed_block(input_sample)
     'module',
     (
         std,
-        std_no_inline
     ),
     ids=(
         'default',
-        'non-inlined',
     )
 )
 def test_unpack_fat_block(benchmark, module):
@@ -116,11 +114,9 @@ def test_unpack_fat_block(benchmark, module):
     'module',
     (
         std,
-        std_no_inline
     ),
     ids=(
         'default',
-        'non-inlined',
     )
 )
 def test_unpack_empty_block(benchmark, module):

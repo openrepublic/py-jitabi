@@ -9,6 +9,18 @@ dependencies = [
     'jinja2>=3.1.6',
     'msgspec>=0.19.0',
     'setuptools>=80.7.1',
+
+    # 'pyo3-antelope-rs',
+    # # 'pyo3-antelope-rs @ https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v0.10.0/pyo3_antelope_rs-0.10.0-cp39-abi3-manylinux_2_34_x86_64.whl ; sys_platform == 'linux' and platform_machine == 'x86_64'',
+
+    # # # windows amd64
+    # # 'pyo3-antelope-rs @ https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v0.10.0/pyo3_antelope_rs-0.10.0-cp39-abi3-win_amd64.whl ; sys_platform == 'win32' and platform_machine == 'AMD64'',
+
+    # # # macos amd64
+    # # 'pyo3-antelope-rs @ https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v0.10.0/pyo3_antelope_rs-0.10.0-cp39-abi3-macosx_10_12_x86_64.whl ; sys_platform == 'darwin' and platform_machine == 'x86_64'',
+
+    # # # macos arm64
+    # # 'pyo3-antelope-rs @ https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v0.10.0/pyo3_antelope_rs-0.10.0-cp39-abi3-macosx_11_0_arm64.whl ; sys_platform == 'darwin' and platform_machine == 'arm64''
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -20,6 +32,9 @@ include = ['src/jitabi']
 [tool.hatch.build.targets.wheel.sources]
 'src/jitabi' = 'jitabi'
 
+# [tool.uv.sources.pyo3-antelope-rs]
+# path = '../pyo3-antelope-rs'
+
 [build-system]
 requires = ['hatchling']
 build-backend = 'hatchling.build'
@@ -29,6 +44,7 @@ dev = [
     'deepdiff>=8.5.0',
     'hypothesis>=6.131.20',
     'pdbp>=1.7.0',
+    'psutil>=7.0.0',
     'pytest>=8.3.5',
     'pytest-benchmark>=5.1.0',
     'pytest-xdist>=3.6.1',

@@ -30,7 +30,7 @@ from jitabi.utils import is_raw_type
 _ID_PATTERN = r'^[A-Za-z_][A-Za-z0-9_]*$'
 _ID_RE = re.compile(_ID_PATTERN)
 
-_TYPE_PATTERN = r'^([A-Za-z_][A-Za-z0-9_]*)(\[\]|\?|\$)?$'
+_TYPE_PATTERN = r'^([A-Za-z_][A-Za-z0-9_]*)(?:\[\]|\?|\$)*$'
 _TYPE_RE = re.compile(_TYPE_PATTERN)
 
 _TYPE_ALLOW_EMPTY_PATTERN = r'^(?:$|([A-Za-z_][A-Za-z0-9_]*)(\[\]|\?|\$)?)$'

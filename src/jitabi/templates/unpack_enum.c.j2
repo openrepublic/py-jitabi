@@ -15,7 +15,7 @@ static PyObject *unpack_{{ enum_name }}(const char *b, size_t buf_len, size_t *c
     switch (idx) {
     {%- for v in variants %}
         case {{ loop.index0 }}: {
-            __ret = unpack_{{ v.name }}(b + __local, buf_len, &__inner);
+            __ret = unpack_{{ v.name }}(b + __local, buf_len - __local, &__inner);
             {% if not v.is_std -%}
             PyObject *type_str = PyUnicode_FromString("{{ v.name }}");
             if (PyDict_SetItemString(__ret, "type", type_str) < 0) goto error;

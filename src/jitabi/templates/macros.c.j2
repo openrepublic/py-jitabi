@@ -3,7 +3,7 @@
 {%- endmacro -%}
 
 
-{% macro debug_field(field) %}
+{%- macro debug_field(field) %}
     // -------- field "{{ field.name }}": "{{ field.call.original_name }}" --------
 
     JITABI_LOG_DEBUG(

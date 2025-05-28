@@ -19,23 +19,19 @@ import random
 import string
 import weakref
 import logging
-from types import ModuleType
 from pathlib import Path
-from typing import Iterator
 
 from deepdiff import DeepDiff
 
 from jitabi import JITContext
 from jitabi.utils import JSONHexEncoder, normalize_dict
-from jitabi.cache import CacheKey
 
 from jitabi.protocol import (
     TypeModifier,
     IOTypes,
     is_raw_type,
     is_std_type,
-    ABIDef,
-    SHIPABIDef,
+    solve_cls_alias,
     ABIView
 )
 
@@ -174,23 +170,43 @@ def assert_dict_eq(a: dict, b: dict):
         raise AssertionError(f'Differences found: {dump}')
 
 
+_suffixes: dict[TypeModifier, str] = {
+    TypeModifier.ARRAY: '[]',
+    TypeModifier.OPTIONAL: '?',
+    TypeModifier.EXTENSION: '$',
+}
+
+def _rest_type_string(base: str, mods: list[TypeModifier]) -> str:
+    '''
+    Re-constitute the inner-type string by appending the remaining
+    modifier suffixes (inner-most first -> rightmost).
+
+    '''
+    for m in reversed(mods):
+        base += _suffixes[m]
+    return base
 
 def random_abi_type(
     abi: ABIView,
     type_name: str,
+    *,
     min_list_size: int = 0,
     max_list_size: int = 2,
     list_delta: int = 0,
     chance_of_none: float = 0.5,
     chance_delta: float = 0.5,
     type_args: dict[str, dict] = {},
-    rng: random.Random  = random
+    rng: random.Random = random,
 ) -> IOTypes:
-    # get type meta like alias solve & modifier extraction
-    resolved = abi.resolve_type(type_name)
-    res_type = resolved.resolved_name
+    '''
+    Generate a random value that is valid for *type_name* according to *abi*,
+    honouring **all** trailing modifiers ( `[]`, `?`, `$` ) in the correct
+    outer-to-inner order.
 
-    # keyword args for potential recursive invocation
+    '''
+    resolved = abi.resolve_type(type_name)
+
+    # kwargs that may change as we peel modifiers
     kwargs = {
         'min_list_size': min_list_size,
         'max_list_size': max_list_size,
@@ -201,112 +217,90 @@ def random_abi_type(
         'rng': rng
     }
 
-    # if we have an entry for this type in type_args override args with it
+    # override via *type_args*
     if type_name in type_args:
         kwargs |= type_args[type_name]
 
-    # handle modifiers
-    match resolved.modifier:
-        case TypeModifier.ARRAY:
-            # decrease next levels list sizes by list_delta or clamp to 0
-            pre_min_size = kwargs['min_list_size']
-            pre_max_size = kwargs['max_list_size']
-            kwargs['min_list_size'] = max(
-                kwargs['min_list_size'] - kwargs['list_delta'], 0
-            )
-            kwargs['max_list_size'] = max(
-                kwargs['max_list_size'] - kwargs['list_delta'], 0
-            )
-            # calculate a random list size for this level & generate
-            list_size = rng.randint(pre_min_size, pre_max_size)
+    # start with the full modifier chain (outer -> inner)
+    modifiers = list(resolved.modifiers)
+    base_type = resolved.resolved_name
+
+    # check if a raw was resolved and rebuild base_type
+    is_raw = is_raw_type(base_type)
+    if is_raw and len(resolved.args) == 1:
+        base_type = f'raw({resolved.args[0]})'
+
+    # handle array / optional / extension layers iteratively
+    while modifiers:
+        outer = modifiers.pop(0)
+
+        if outer is TypeModifier.ARRAY:
+            # shrink bounds for deeper arrays
+            pre_min = kwargs['min_list_size']
+            pre_max = kwargs['max_list_size']
+            kwargs['min_list_size'] = max(pre_min - kwargs['list_delta'], 0)
+            kwargs['max_list_size'] = max(pre_max - kwargs['list_delta'], 0)
+
+            size = rng.randint(pre_min, pre_max)
+            inner = _rest_type_string(base_type, modifiers)
             return [
-                random_abi_type(abi, res_type, **kwargs)
-                for _ in range(list_size)
+                random_abi_type(abi, inner, **kwargs)
+                for _ in range(size)
             ]
 
-        case TypeModifier.OPTIONAL | TypeModifier.EXTENSION:
-            # maybe generate a None
-            if rng.random() < 1. - chance_of_none:
+        if outer in (TypeModifier.OPTIONAL, TypeModifier.EXTENSION):
+            # decide whether to produce None
+            if rng.random() < kwargs['chance_of_none']:
                 return None
 
-            # increase next level's chances of None by chance_delta or clamp to
-            # 100% chance == 1.
+            # raise None-probability for deeper optionals
             kwargs['chance_of_none'] = min(
-                1.,
-                chance_of_none + chance_delta
+                1.0,
+                kwargs['chance_of_none'] + kwargs['chance_delta']
             )
+            inner = _rest_type_string(base_type, modifiers)
+            return random_abi_type(abi, inner, **kwargs)
 
-            # generate type
-            return random_abi_type(abi, res_type, **kwargs)
+        # unreachable: only array / optional / extension exist
+        raise AssertionError(f'unknown modifier {outer!r}')
 
-    # check for raw(LEN) types
-    if is_raw_type(res_type):
-        return random_std_type('raw(' + resolved.args[0] + ')', rng=rng)
+    # no more modifiers - generate concrete data
+    if is_raw or is_std_type(base_type):
+        return random_std_type(base_type, rng=rng)
 
-    # delegate standard types
-    if is_std_type(res_type):
-        return random_std_type(res_type, rng=rng)
+    # variant
+    if base_type in abi.variant_map:
+        variant_type = rng.choice(abi.variant_map[base_type].types)
+        val = random_abi_type(abi, variant_type, **kwargs)
+        return {'type': variant_type, **val} if isinstance(val, dict) else val
 
-    if res_type in abi.variant_map:
-        # if type resolved to an enum choose a random variant of it
-        enum_type = rng.choice(
-            abi.variant_map[res_type].types
-        )
-        # generate the variant obj
-        obj = random_abi_type(
-            abi,
-            enum_type,
-            **kwargs
-        )
-        if isinstance(obj, dict):
-            # if its a struct variant inject type key
-            return {
-                'type': enum_type,
-                **obj
-            }
+    # struct
+    if base_type not in abi.struct_map:
+        raise TypeError(f'Expected {type_name} to resolve to a struct')
 
-        # variant is a std type, just return
-        return obj
+    struct = abi.struct_map[base_type]
 
-    # by this point we expect types to be a struct defined in the ABI
-    if res_type not in abi.struct_map:
-        raise TypeError(
-            f'Expected {type_name} to resolve to a struct!: {resolved}'
-        )
-
-    # get struct meta
-    struct = abi.struct_map[res_type]
-
-    # if struct has a base, generate it first
-    base = (
+    # recurse into base struct first
+    obj = (
         {} if not struct.base
-        else random_abi_type(
-            abi,
-            struct.base,
-            **kwargs
-        )
+        else random_abi_type(abi, struct.base, **kwargs)
     )
 
-    # generate actual struct obj from its fields
-    obj = base | {
-        f.name: random_abi_type(
-            abi,
-            f.type_,
-            **kwargs
-        )
+    # populate fields
+    obj |= {
+        f.name: random_abi_type(abi, f.type_, **kwargs)
         for f in struct.fields
     }
 
-    # when object contains fields with the extension modifier ($) we must
-    # ensure that after the first None field, all remaining extension fields
-    # are also None
-    found_extension = False
-    for field, value in zip(struct.fields, list(obj.values())):
-        if field.type_[-1] == '$' and not value:
-            found_extension = True
-
-        if found_extension:
-            obj[field.name] = None
+    # enforce "$" (binary-extension) rule:
+    found_ext = False
+    for f in struct.fields:
+        if f.type_.endswith('$'):
+            if found_ext or obj[f.name] is None:
+                found_ext = True
+                obj[f.name] = None
+        elif found_ext:
+            obj[f.name] = None
 
     return obj
 
@@ -314,11 +308,13 @@ def random_abi_type(
 # stuff used in our tests
 
 default_max_examples: int = 10 if inside_ci else 100
+default_batch_size: int = 100
 default_test_deadline: int = 5 * 60 * 1000  # 5 min in ms
 
 # abi jsons on tests/abis
 _default_abi_whitelist: list[str] = [
     'test_abi',
+    'eosio_msig',
     'eosio_token',
     'eosio_system',
     'standard',
@@ -339,9 +335,10 @@ def load_abis(whitelist: list[str] = _default_abi_whitelist) -> list[tuple[str, 
             and p.suffix == '.json'
             and p.stem in whitelist
         ):
-            cls = ABIDef
-            if p.stem == 'standard':
-                cls = SHIPABIDef
+            if p.stem not in whitelist:
+                continue
+
+            cls = solve_cls_alias(p.stem)
 
             logger.info(f'Loading ABI: {p.stem} using {cls.__name__}')
 
@@ -350,7 +347,7 @@ def load_abis(whitelist: list[str] = _default_abi_whitelist) -> list[tuple[str, 
                     p.stem, ABIView.from_file(p, cls=cls)
                 ))
 
-            except Exception as e:
+            except Exception:
                 logger.error(f'While loading {p}')
                 raise
 
@@ -367,53 +364,39 @@ def bootstrap_cache(
     missing ones.
 
     '''
-    ctx = JITContext(cache_path=cache_path)
+    ctx = JITContext(
+        cache_path=cache_path,
+        ipc_locked=False
+    )
     for mod_name, abi in abis:
         ctx.module_for_abi(mod_name, abi, force_reload=force_reload)
 
 
-def iter_type_cases() -> Iterator[
-    tuple[str, ABIView, CacheKey, ModuleType, str]
-]:
+def iter_type_meta():
     '''
-    Yield (mod_name, abi, cache_key, module, type_name) for every struct / enum.
+    Yield (mod_name, abi, type_name)
 
     '''
-
-    # load whitelisted abis
-    abi_whitelist: list[str] = os.getenv(
-        'JITABI_WHITELIST',
-        default_abi_whitelist_str
+    abi_whitelist = os.getenv(
+        'JITABI_WHITELIST', default_abi_whitelist_str
     ).split(',')
-    abis = load_abis(whitelist=abi_whitelist)
 
-    # maybe get type whitelist, * should signal no whitelist
-    type_whitelist: set[str] = set(
-        os.getenv('JITABI_TYPE_WHITELIST', '*').split(',')
-    )
+    for p in testing_abi_dir.iterdir():
+        if p.suffix != '.json' or p.stem not in abi_whitelist:
+            continue
 
-    # load the actual CPython modules for each abi (should of been built during
-    # `pytest_configure` hook)
-    jit = JITContext(
-        cache_path=testing_cache_dir,
-        readonly=True
-    )
-    modules: dict[str, ModuleType] = {
-        mod_name: jit.module_for_abi(mod_name, abi)
-        for mod_name, abi in abis
-    }
+        mod_name = p.stem
+        abi = ABIView.from_file(p, cls=mod_name)
 
-    # for every abi
-    for mod_name, abi in abis:
-        key, module = modules[mod_name]
-        # for every struct or enum
-        for s in abi.structs + abi.variants:
-            # if no type_whitelist or not whitelisted skip
-            if '*' not in type_whitelist and s.name not in type_whitelist:
+        for t in abi.structs + abi.variants:
+            tname = t.name
+            type_whitelist = set(
+                os.getenv('JITABI_TYPE_WHITELIST', '*').split(',')
+            )
+            if '*' not in type_whitelist and tname not in type_whitelist:
                 continue
 
-            # yield a test case
-            yield mod_name, abi, key, module, s.name
+            yield mod_name, abi, tname
 
 
 def measure_leaks_in_call(

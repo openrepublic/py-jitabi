@@ -79,7 +79,8 @@ class JITContext:
     def __init__(
         self,
         cache_path: Path | str | None = None,
-        readonly: bool = False
+        readonly: bool = False,  # dont allow source regeneration or compilation
+        ipc_locked: bool = True  # use ipc locks when accesing cache directories
     ):
         if not readonly and not detect_working_compiler():
             raise RuntimeError(
@@ -88,7 +89,7 @@ class JITContext:
                 'in readonly mode.'
             )
 
-        self._cache = Cache(fs_location=cache_path)
+        self._cache = Cache(fs_location=cache_path, ipc_locked=ipc_locked)
         self._readonly = readonly
         logger.info(
             f'Initialized JITContext with cache at {self._cache.fs_location}'
@@ -97,9 +98,11 @@ class JITContext:
         self._versions: dict = {}
 
     def _full_mod_name(self, name: str) -> str:
+        name = name.replace('.', '_')
         return f'{name}_{self._versions.setdefault(name, 0)}'
 
     def _inc_mod_name(self, name: str):
+        name = name.replace('.', '_')
         self._versions[name] += 1
 
     def _source_from_abi(
@@ -164,12 +167,13 @@ class JITContext:
         # not cached: compile now
         logger.info(f'Compiling module {key})')
         output_dir = self._cache.get_module_path(key)
-        compile_module(
-            key.mod_name,
-            source,
-            output_dir,
-            key.params
-        )
+        with self._cache.dir_lock(output_dir, shared=False):
+            compile_module(
+                key.mod_name,
+                source,
+                output_dir,
+                key.params
+            )
 
         module = self._cache.get_module(key, force_reload=True)
         if module is None:

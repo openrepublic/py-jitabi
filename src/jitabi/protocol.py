@@ -41,7 +41,7 @@ from jitabi.sanitize import (
 # input/output types, these are valid inputs for pack_* & valid outputs for
 # unpack_*
 IOTypes = (
-    bool | int | float | bytes | str | list | dict
+    None | bool | int | float | bytes | str | list | dict
 )
 
 
@@ -133,20 +133,6 @@ class SHIPTableDef(Struct, frozen=True):
     type_: TypeName = field(name='type')
 
 
-class ClauseDef(Struct, frozen=True):
-    id: str
-    body: str
-
-
-class ErrorMessageDef(Struct, frozen=True):
-    error_code: int
-    error_msg: str
-
-class ActionResultDef(Struct, frozen=True):
-    name: AntelopeName
-    result_type: TypeName
-
-
 class ABIDef(Struct, frozen=True):
     '''
     Msgspec compatible AntelopeIO ABI definition
@@ -160,12 +146,8 @@ class ABIDef(Struct, frozen=True):
     structs: list[StructDef]
     variants: list[VariantDef] = []
 
-    abi_extensions: list = []
     actions: list[ActionDef] = []
     tables: list[TableDef] = []
-    ricardian_clauses: list[ClauseDef] = []
-    error_messages: list[ErrorMessageDef] = []
-    action_results: list[ActionResultDef] = []
 
     @staticmethod
     def from_str(s: str) -> ABIDef:
@@ -212,6 +194,22 @@ class SHIPABIDef(Struct, frozen=True):
     def as_bytes(self) -> bytes:
         return msgspec.json.encode(self)
 
+
+ABIDefClass = type(ABIDef) | type(SHIPABIDef)
+ABIClassOrAlias = ABIDefClass | str | None
+
+
+def solve_cls_alias(cls: ABIClassOrAlias = None) -> ABIDefClass:
+    if isinstance(cls, str):
+        if cls in ['std', 'standard']:
+            return SHIPABIDef
+
+        return ABIDef
+
+    if not cls:
+        cls = ABIDef
+
+    return cls
 
 # builtin types
 # see: https://github.com/AntelopeIO/leap/blob/92b6fec5e949660bae78e90ebf555fe71ab06940/libraries/chain/abi_serializer.cpp#L89
@@ -266,7 +264,50 @@ class ABIResolvedType(Struct, frozen=True):
     resolved_name: str
     args: list[str]
     is_std: bool
-    modifier: TypeModifier
+    is_alias: bool
+    is_struct: bool
+    is_variant: bool
+    modifiers: list[TypeModifier]
+
+
+def split_type_modifiers(name: str) -> tuple[str, list[TypeModifier]]:
+    '''
+    Peel off every recognised trailing modifier, outer-most first.
+    The returned list is ordered [outer, ... inner].
+
+    Unsupported fixed-size arrays like `uint8[32]` raise immediately.
+    '''
+    mods: list[TypeModifier] = []
+    while True:
+        if name.endswith('[]'):
+            mods.append(TypeModifier.ARRAY)
+            name = name[:-2]
+            continue
+        last = name[-1]
+        if last == '?':
+            mods.append(TypeModifier.OPTIONAL)
+            name = name[:-1]
+            continue
+        if last == '$':
+            mods.append(TypeModifier.EXTENSION)
+            name = name[:-1]
+            continue
+        if last == ']':  # looks like a fixed-size array -> not supported
+            lb = name.rfind('[')
+            if lb != -1 and name[lb + 1:-1].isdigit():
+                raise TypeError(
+                    f'Fixed-size arrays “{name[lb:]}” are not supported'
+                )
+        break
+    return name, mods
+
+
+def maybe_extract_type_mods(name: str) -> tuple[str, TypeModifier]:
+    '''
+    Kept for callers that only care about the *outer-most* modifier.
+    '''
+    base, mods = split_type_modifiers(name)
+    return base, (mods[0] if mods else TypeModifier.NONE)
 
 
 class ABIView:
@@ -312,21 +353,13 @@ class ABIView:
         ])
 
     @staticmethod
-    def from_str(s: str) -> ABIView:
-        return ABIView(ABIDef.from_str(s))
+    def from_str(s: str, cls: ABIClassOrAlias = None) -> ABIView:
+        cls = solve_cls_alias(cls)
+        return ABIView(cls.from_str(s))
 
     @staticmethod
-    def from_file(p: Path | str, cls: str | None = None) -> ABIView:
-        if not cls:
-            cls = ABIDef
-
-        if isinstance(cls, str):
-            if cls in ['std', 'standard']:
-                cls = SHIPABIDef
-
-            else:
-                cls = ABIDef
-
+    def from_file(p: Path | str, cls: ABIClassOrAlias = None) -> ABIView:
+        cls = solve_cls_alias(cls)
         return ABIView(cls.from_file(p))
 
     @staticmethod
@@ -359,42 +392,53 @@ class ABIView:
             is_raw_type(name)
         )
 
-    def maybe_resolve_alias(self, name: str) -> str | None:
-        return self.alias_map.get(name, None)
+    def resolve_alias(self, name: str) -> str:
+        return self.alias_map.get(name, name)
 
     def resolve_type(self, name: str) -> ABIResolvedType:
-        maybe_resolved = self.maybe_resolve_alias(name)
-        if maybe_resolved:
-            resolved = self.resolve_type(maybe_resolved)
-            return ABIResolvedType(
-                original_name=name,
-                resolved_name=resolved.resolved_name,
-                args=resolved.args,
-                is_std=resolved.is_std,
-                modifier=resolved.modifier
-            )
+        original = name
 
-        og_name = name
+        # peel every modifier
+        base, mods = split_type_modifiers(name)
 
-        args: list[str] = []
-        if is_raw_type(name):
-            args = extract_type_params(name)
-            name = 'raw'
+        # follow alias chain, collecting any modifiers it adds
+        visited: set[str] = set()
+        is_alias = False
+        while True:
+            target = self.alias_map.get(base)
+            if not target:
+                break
+            if base in visited:
+                raise TypeError(f'Circular alias detected: {visited} -> {base}')
+            visited.add(base)
+            is_alias = True
+            t_base, t_mods = split_type_modifiers(target)
+            mods.extend(t_mods)   # inner modifiers go to the end
+            base = t_base
 
-        unmod_name, modifier = maybe_extract_type_mods(name)
-
-        if not self.is_valid_type(unmod_name):
+        if not self.is_valid_type(base):
             raise TypeError(
-                f'{og_name}(resolved: {unmod_name}) not a valid type!:\n'
+                f'{original} (resolved to {base}) is not a valid type:\n'
                 f'{self.valid_types}'
             )
 
+        base = self.resolve_alias(base)
+
+        # handle raw(N)
+        args: list[str] = []
+        if is_raw_type(base):
+            args = extract_type_params(base)
+            base = 'raw'
+
         return ABIResolvedType(
-            original_name=og_name,
-            resolved_name=unmod_name,
+            original_name=original,
+            resolved_name=base,
             args=args,
-            is_std=is_std_type(unmod_name),
-            modifier=modifier
+            is_std=is_std_type(base),
+            is_struct=base in self.struct_map,
+            is_variant=base in self.variant_map,
+            is_alias=is_alias,
+            modifiers=tuple(mods)
         )
 
     def hash(self, *, as_bytes: bool = False) -> str | bytes:
@@ -426,16 +470,3 @@ class ABIView:
             h.digest() if as_bytes
             else h.hexdigest()
         )
-
-
-def maybe_extract_type_mods(name: str) -> tuple[str, TypeModifier]:
-    if name.endswith('[]'):  # array
-        return name[:-2], TypeModifier.ARRAY
-
-    if name[-1] == '?':
-        return name[:-1], TypeModifier.OPTIONAL
-
-    elif name[-1] == '$':
-        return name[:-1], TypeModifier.EXTENSION
-
-    return name, TypeModifier.NONE

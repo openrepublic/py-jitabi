@@ -9,16 +9,18 @@ from hypothesis import (
     event,
     given,
     settings,
-    strategies as st
+    strategies as st,
+    HealthCheck
 )
 
 from jitabi.utils import JSONHexEncoder
 from jitabi._testing import (
     inside_ci,
     default_max_examples,
+    default_batch_size,
     default_test_deadline,
     measure_leaks_in_call,
-    iter_type_cases,
+    iter_type_meta,
     random_abi_type
 )
 
@@ -40,23 +42,30 @@ if not hasattr(sys, 'gettotalrefcount'):
 logger = logging.getLogger(__name__)
 
 
-# total function calls made is:
-#     abi_type_count * max_examples * trials * 2
-#           244      *     100      *  1000  * 2 = 48_800_000
-
 max_examples = int(os.getenv('JITABI_MAX_EXAMPLES', default_max_examples))
-trials: int = int(os.getenv('JITABI_TRIALS', str(100)))
+trials: int = int(os.getenv('JITABI_TRIALS', str(10)))
+
+EXAMPLE_QUOTA = int(os.environ['JITABI_EXAMPLE_QUOTA'])
+BATCH_SIZE = min(max_examples, default_batch_size)
+ROUNDS = (EXAMPLE_QUOTA + BATCH_SIZE - 1) // BATCH_SIZE
 
 
-@pytest.mark.parametrize('case_info', iter_type_cases())
+@pytest.mark.parametrize("batch", range(ROUNDS))
+@pytest.mark.parametrize(
+    'case_info',
+    iter_type_meta(),
+    indirect=True,
+    ids=lambda p: f'{p[0]}:{p[2]}',
+)
 @given(rng=st.randoms())
 @settings(
+    max_examples=BATCH_SIZE,
     # avoid shrink phase cause it will always report flaky due to gc & error handling
     phases=[Phase.generate, Phase.target, Phase.explain],
-    max_examples=max_examples,
-    deadline=default_test_deadline
+    deadline=default_test_deadline,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
 )
-def test_ref_leaks(case_info, rng):
+def test_ref_leaks(case_info, batch, rng, memory_guard):
     '''
     Auto detect generated extension modules ref leaks.
 

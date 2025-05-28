@@ -95,10 +95,14 @@
         },
         {
           "name": "field_end0",
-          "type": "bigint$"
+          "type": "bigint?$"
         },
         {
           "name": "field_end1",
+          "type": "bigint$"
+        },
+        {
+          "name": "field_end2",
           "type": "bigint$"
         }
       ]

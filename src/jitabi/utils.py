@@ -9,6 +9,29 @@ import subprocess
 from shutil import which
 
 
+if os.name == "nt":
+    # Win32
+    import msvcrt
+
+    def fd_lock(fd, exclusive: bool):
+        mode = msvcrt.LK_NBLCK if exclusive else msvcrt.LK_NBRLCK
+        msvcrt.locking(fd, mode, 1)
+
+    def fd_unlock(fd):
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+
+else:
+    # POSIX
+    import fcntl
+
+    def fd_lock(fd, exclusive: bool):
+        flag = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+        fcntl.flock(fd, flag)
+
+    def fd_unlock(fd):
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
+
 _RAW_TYPE_RE = re.compile(r'^raw\(\d+\)$')
 
 def is_raw_type(name: str) -> bool:
@@ -33,8 +56,8 @@ class JSONHexEncoder(json.JSONEncoder):
         try:
             return super().default(obj)
 
-        except Exception as e:
-            return f'Unknown!: {e}'
+        except Exception:
+            return str(obj)
 
 
 def detect_working_compiler() -> str | None:

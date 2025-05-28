@@ -1,87 +1,84 @@
 {%- import "macros.c.j2" as m -%}
 
-{%- macro pack_fn(call, indent_count=8) -%}
+{# -------------------------------------------------------------------------
+   core call into leaf-type packer
+   ------------------------------------------------------------------------- #}
+{%- macro pack_fn(call, val='__field', indent_count=8) -%}
 pack_{{ call.resolved_name }}(
 {%- call m.indent(indent_count) %}
-    __field
-    {%- for a in call.args %}
+    {{ val }}
+    {%- for a in call.args -%}
     , {{ a }}
-    {%- endfor %}
-    , __dst + __offset
-    , __dst_len - __offset
+    {%- endfor %},
+    __dst + __offset,
+    __dst_len - __offset
 );
 {% endcall -%}
 {%- endmacro -%}
 
+{# -------------------------------------------------------------------------
+   recursive packing of a chain of modifiers
+   mods : [outer, …, inner]
+   val  : name of the PyObject * variable holding the value to pack
+   ------------------------------------------------------------------------- #}
+{%- macro pack_mod_chain(call, mods, depth, ctx, val='__field') -%}
+{%- if mods|length == 0 %}
+    __consumed = {{ pack_fn(call, val=val, indent_count=4) }}
+    if (__consumed < 0) return -1;
+    __offset += __consumed;
+{%- else -%}
+{%- call m.indent(depth + 4) %}
+{% set outer = mods[0] %}
+{% set inner = mods[1:] %}
+{%- if outer.name == 'OPTIONAL' -%}
+__dst[__offset++] = (char)(({{ val }} != Py_None));
+if ({{ val }} != Py_None && {{ val }} != NULL) {
+{{- pack_mod_chain(call, inner, depth, ctx ~ '_opt', val) }}
+}
+{%- elif outer.name == 'EXTENSION' -%}
+if ({{ val }} != Py_None && {{ val }} != NULL) {
+{{- pack_mod_chain(call, inner, depth, ctx ~ '_ext', val) }}
+}
+{%- elif outer.name == 'ARRAY' -%}
+if (!PyList_Check({{ val }})) {
+    PyErr_SetString(PyExc_TypeError, "expected list for field '{{ ctx }}'");
+    return -1;
+}
+Py_ssize_t __len_{{ ctx }} = PyList_Size({{ val }});
+char __len_buf_{{ ctx }}[10];
+ssize_t __varint_len_{{ ctx }} =
+    encode_varuint32((unsigned long long)__len_{{ ctx }}, __len_buf_{{ ctx }});
+if (__varint_len_{{ ctx }} < 0 ||
+    (size_t)(__offset + __varint_len_{{ ctx }}) > __dst_len) return -1;
+memcpy(__dst + __offset, __len_buf_{{ ctx }}, (size_t)__varint_len_{{ ctx }});
+__offset += __varint_len_{{ ctx }};
+
+for (Py_ssize_t __i_{{ ctx }} = 0; __i_{{ ctx }} < __len_{{ ctx }}; ++__i_{{ ctx }}) {
+    PyObject *__item_{{ ctx }} = PyList_GetItem({{ val }}, __i_{{ ctx }});
+    {{- pack_mod_chain(call, inner, depth, ctx ~ '_arr', val='__item_' ~ ctx) }}
+}
+{%- else -%}
+/* unknown modifier */
+{%- endif %}
+{% endcall %}
+{%- endif -%}
+{%- endmacro -%}
+
+{# -------------------------------------------------------------------------
+   one struct field
+   ------------------------------------------------------------------------- #}
 {%- macro pack_field(f) -%}
-    {
-    {%- if f.call.modifier.name == "ARRAY" %}
-        Py_ssize_t __len;
-        Py_ssize_t __i;
-        char __len_buf[10];
-        ssize_t __varint_len;
-        PyObject *__list;
-    {%- endif %}
-        {%- call m.indent(4) %}
-        {{- m.debug_field(f) -}}
-        {% endcall %}
-
-        __field = PyDict_GetItemString(__obj, "{{ f.name }}");
-        if (!__field) {
-            PyErr_SetString(PyExc_KeyError, "missing field '{{ f.name }}'");
-            return -1;
-        }
-    {%- if f.call.modifier.name == "NONE" %}
-        __consumed = {{ pack_fn(f.call) }}
-        if (__consumed < 0) return -1;
-        __offset += __consumed;
-
-    {%- elif f.call.modifier.name == "OPTIONAL" %}
-        __dst[__offset++] = (char)(__field != Py_None);
-
-        #ifdef __JITABI_DEBUG
-            JITABI_LOG_DEBUG(
-                "optional offset: %lu", __offset
-            );
-        #endif
-        if (__field != Py_None && __field != NULL) {
-            __consumed = {{ pack_fn(f.call) }}
-            if (__consumed < 0) return -1;
-            __offset += __consumed;
-        }
-
-    {%- elif f.call.modifier.name == "EXTENSION" %}
-        if (__field != Py_None && __field != NULL) {
-            __consumed = {{ pack_fn(f.call) }}
-            if (__consumed < 0) return -1;
-            __offset += __consumed;
-        }
-
-    {%- elif f.call.modifier.name == "ARRAY" %}
-        if (!PyList_Check(__field)) {
-            PyErr_SetString(PyExc_TypeError, "expected list for field '{{ f.name }}'");
-            return -1;
-        }
-
-        __len = PyList_Size(__field);
-        __varint_len = encode_varuint32((unsigned long long)__len, (char *)__len_buf);
-        if (__varint_len < 0 || (size_t)(__offset + __varint_len) > __dst_len) return -1;
-        memcpy(__dst + __offset, __len_buf, (size_t)__varint_len);
-        __offset += __varint_len;
-
-        __list = __field;
-        for (__i = 0; __i < __len; __i++) {
-            __field = PyList_GetItem(__list, __i);
-            __consumed = {{ pack_fn(f.call, indent_count=12) }}
-            if (__consumed < 0) return -1;
-            __offset += __consumed;
-        }
-
-    {%- else %}
-        #error "Unknown modifier in pack_struct"
-    {% endif %}
-        JITABI_LOG_DEBUG("{{ f.name }} packed, offset: %lu", __offset);
+{
+    {{- m.debug_field(f) }}
+    PyObject *__field = PyDict_GetItemString(__obj, "{{ f.name }}");
+    if (!__field) {
+        PyErr_SetString(PyExc_KeyError, "missing field '{{ f.name }}'");
+        return -1;
     }
+
+    {{- pack_mod_chain(f.call, f.call.modifiers, 0, f.name) }}
+    JITABI_LOG_DEBUG("{{ f.name }} packed, offset: %lu", __offset);
+}
 {%- endmacro -%}
 
 static ssize_t pack_{{ fn_name }}(PyObject *__obj, char *__dst, size_t __dst_len)
@@ -91,29 +88,29 @@ static ssize_t pack_{{ fn_name }}(PyObject *__obj, char *__dst, size_t __dst_len
     ssize_t __consumed = 0;
 
     JITABI_LOG_DEBUG(
-        {%- if base -%}
+    {%- if base -%}
         "PACK struct {{ fn_name }} with base {{ base }}"
-        {%- else -%}
-        "PACK struct {{ fn_name }}:"
-        {%- endif -%}
+    {%- else -%}
+        "PACK struct {{ fn_name }}"
+    {%- endif -%}
     );
+{%- if base %}
 
-{% if base %}
     // pack base first
     __consumed = pack_{{ base }}(__obj, __dst, __dst_len);
     if (__consumed < 0) return -1;
     __offset += __consumed;
-
 {%- endif %}
 
-    PyObject *__field = NULL;
-
 {% for f in fields %}
-    {{ pack_field(f) -}}
-{% endfor %}
+{%- call m.indent() %}
+{{ pack_field(f) }}
+{% endcall -%}
+{%- endfor %}
 
     return __offset;
 {%- else %}
+    (void)__obj; (void)__dst; (void)__dst_len;
     return 0;
 {% endif %}
 }
