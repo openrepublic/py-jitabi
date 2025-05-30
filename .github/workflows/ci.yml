@@ -89,7 +89,7 @@ jobs:
         run: uv sync --dev
 
       - name: Run tests
-        run: uv run pytest -n auto
+        run: uv run pytest
 
       - name: Create 3.13 virtualenv
         run: uv venv .venv --python=3.13
@@ -98,4 +98,4 @@ jobs:
         run: uv sync --dev
 
       - name: Run tests
-        run: uv run pytest -n auto
+        run: uv run pytest
