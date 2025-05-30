@@ -177,18 +177,20 @@ name = "maturin"
 version = "1.8.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "tomli", marker = "(python_full_version < '3.11' and platform_machine == 'arm64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux') or (python_full_version < '3.11' and platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/34/bc/c7df50a359c3a31490785c77d1ddd5fc83cc8cc07a4eddd289dbae53545a/maturin-1.8.6.tar.gz", hash = "sha256:0e0dc2e0bfaa2e1bd238e0236cf8a2b7e2250ccaa29c1aa8d0e61fa664b0289d", size = 203320, upload-time = "2025-05-13T13:56:11.033Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d3/f1/e493add40aebdab88ac1aefb41b9c84ac288fb00025bc96b9213ee02c958/maturin-1.8.6-py3-none-linux_armv6l.whl", hash = "sha256:1bf4c743dd2b24448e82b8c96251597818956ddf848e1d16b59356512c7e58d8", size = 7831195, upload-time = "2025-05-13T13:55:42.634Z" },
     { url = "https://files.pythonhosted.org/packages/f0/1c/588afdb7bf79c4f15e33e9af6d7f3b12ec662bc63a22919e3bf39afa2a1e/maturin-1.8.6-py3-none-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:4ea89cf76048bc760e12b36b608fc3f5ef4f7359c0895e9afe737be34041d948", size = 15276471, upload-time = "2025-05-13T13:55:46.196Z" },
     { url = "https://files.pythonhosted.org/packages/62/0b/4ce97f7f3a42068fbb42ba47d8b072e098c060fc1f64d8523e5588c57543/maturin-1.8.6-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:4dd2e2f005ca63ac7ef0dddf2d65324ee480277a11544dcc4e7e436af68034dd", size = 7966129, upload-time = "2025-05-13T13:55:48.633Z" },
+    { url = "https://files.pythonhosted.org/packages/84/bf/4eae9d12920c580baf9d47ee63fec3ae0233e90a3aa8987bd7909cdc36a0/maturin-1.8.6-py3-none-manylinux_2_12_i686.manylinux2010_i686.musllinux_1_1_i686.whl", hash = "sha256:b0637604774e2c50ab48a0e9023fe2f071837ecbc817c04ec28e1cfcc25224c2", size = 7835935, upload-time = "2025-05-13T13:55:51.235Z" },
     { url = "https://files.pythonhosted.org/packages/f9/aa/8090f8b3f5f7ec46bc95deb0f5b29bf52c98156ef594f2e65d20bf94cea1/maturin-1.8.6-py3-none-manylinux_2_12_x86_64.manylinux2010_x86_64.musllinux_1_1_x86_64.whl", hash = "sha256:bec5948c6475954c8089b17fae349966258756bb2ca05e54099e476a08070795", size = 8282553, upload-time = "2025-05-13T13:55:53.266Z" },
     { url = "https://files.pythonhosted.org/packages/bc/50/4348da6cc16c006dab4e6cd479cf00dc0afa80db289a115a314df9909ee6/maturin-1.8.6-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.musllinux_1_1_aarch64.whl", hash = "sha256:62a65f70ebaadd6eb6083f5548413744f2ef12400445778e08d41d4facf15bbe", size = 7618339, upload-time = "2025-05-13T13:55:55.706Z" },
     { url = "https://files.pythonhosted.org/packages/ce/77/16458e29487d068c8cdb7f06a4403393568a10b44993fe2ec9c3b29fdccd/maturin-1.8.6-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.musllinux_1_1_armv7l.whl", hash = "sha256:5c0ff7ad43883920032b63c94c76dcdd5758710d7b72b68db69e7826c40534ac", size = 7686748, upload-time = "2025-05-13T13:55:57.97Z" },
     { url = "https://files.pythonhosted.org/packages/0c/c1/a52f3c1171c053810606c7c7fae5ce4637446ef9df44f281862d2bef3750/maturin-1.8.6-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.musllinux_1_1_ppc64le.whl", hash = "sha256:ca30fdb158a24cf312f3e53072a6e987182c103fa613efea2d28b5f52707d04a", size = 9767394, upload-time = "2025-05-13T13:56:00.694Z" },
     { url = "https://files.pythonhosted.org/packages/e2/ab/abae74f36a0f200384eda985ebeb9ee5dcbb19bfe1558c3335ef6f297094/maturin-1.8.6-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:b1e786ec9b5f7315c7e3fcc62b0715f9d99ffe477b06d0d62655a71e6a51a67b", size = 10995574, upload-time = "2025-05-13T13:56:03.101Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/1c/c478578a62c1e34b5b0641a474de78cb56d6c4aad0ba88f90dfa9f2a15f7/maturin-1.8.6-py3-none-win32.whl", hash = "sha256:dade5edfaf508439ff6bbc7be4f207e04c0999c47d9ef7e1bae16258e76b1518", size = 7027171, upload-time = "2025-05-13T13:56:05.472Z" },
     { url = "https://files.pythonhosted.org/packages/c9/89/2c57d29f25e06696cb3c5b3770ba0b40dfe87f91a879ecbcdc92e071a26b/maturin-1.8.6-py3-none-win_amd64.whl", hash = "sha256:6bc9281b90cd37e2a7985f2e5d6e3d35a1d64cf6e4d04ce5ed25603d162995b9", size = 7947998, upload-time = "2025-05-13T13:56:07.428Z" },
     { url = "https://files.pythonhosted.org/packages/9d/f5/3ee1c6aa4e277323bef38ea0ec07262a9b88711d1a29cb5bb08ce3807a6f/maturin-1.8.6-py3-none-win_arm64.whl", hash = "sha256:24f66624db69b895b134a8f1592efdf04cd223c9b3b65243ad32080477936d14", size = 6684974, upload-time = "2025-05-13T13:56:09.415Z" },
 ]
@@ -300,10 +302,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
-    { name = "pyo3-antelope-rs", version = "1.0.0", source = { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_10_12_x86_64.whl" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "pyo3-antelope-rs", version = "1.0.0", source = { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_11_0_arm64.whl" }, marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "pyo3-antelope-rs", version = "1.0.0", source = { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-manylinux_2_34_x86_64.whl" }, marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-    { name = "pyo3-antelope-rs", version = "1.0.0", source = { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-win_amd64.whl" }, marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
+    { name = "pyo3-antelope-rs" },
     { name = "setuptools" },
 ]
 
@@ -321,10 +320,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "pyo3-antelope-rs", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'", url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_11_0_arm64.whl" },
-    { name = "pyo3-antelope-rs", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'", url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_10_12_x86_64.whl" },
-    { name = "pyo3-antelope-rs", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-manylinux_2_34_x86_64.whl" },
-    { name = "pyo3-antelope-rs", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'", url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-win_amd64.whl" },
+    { name = "pyo3-antelope-rs", specifier = ">=1.0.0" },
     { name = "setuptools", specifier = ">=80.7.1" },
 ]
 
@@ -351,93 +347,18 @@ wheels = [
 [[package]]
 name = "pyo3-antelope-rs"
 version = "1.0.0"
-source = { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_10_12_x86_64.whl" }
-resolution-markers = [
-    "platform_machine == 'x86_64' and sys_platform == 'darwin'",
-]
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "frozendict", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "maturin", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
-    { name = "msgspec", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
+    { name = "frozendict" },
+    { name = "maturin" },
+    { name = "msgspec" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/d2/a1/19fecc20e6ddd9a39548cabaf27467e28b3ce962bdf77513fb5bf2da219e/pyo3_antelope_rs-1.0.0.tar.gz", hash = "sha256:7565f12f5fb95ba5e153a940267ea60dfded48a8e7040fb1fb076255e11b4a85", size = 27603, upload-time = "2025-05-30T18:07:27.152Z" }
 wheels = [
-    { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:7e299e94eeb673f4c7fe37c825f10e7047753a9cbcc341d41ecf3baa8aaa9226" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "frozendict", specifier = ">=2.4.6" },
-    { name = "maturin", specifier = ">=1.8.2" },
-    { name = "msgspec", specifier = ">=0.19.0" },
-]
-
-[[package]]
-name = "pyo3-antelope-rs"
-version = "1.0.0"
-source = { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_11_0_arm64.whl" }
-resolution-markers = [
-    "platform_machine == 'arm64' and sys_platform == 'darwin'",
-]
-dependencies = [
-    { name = "frozendict", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "maturin", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
-    { name = "msgspec", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
-]
-wheels = [
-    { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:c47007fec511eea076e53c279a09ed8fa32be5326de4041e72d704b75b9fea76" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "frozendict", specifier = ">=2.4.6" },
-    { name = "maturin", specifier = ">=1.8.2" },
-    { name = "msgspec", specifier = ">=0.19.0" },
-]
-
-[[package]]
-name = "pyo3-antelope-rs"
-version = "1.0.0"
-source = { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-manylinux_2_34_x86_64.whl" }
-resolution-markers = [
-    "platform_machine == 'x86_64' and sys_platform == 'linux'",
-]
-dependencies = [
-    { name = "frozendict", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-    { name = "maturin", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-    { name = "msgspec", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
-]
-wheels = [
-    { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:51fc5d5e470bbb2fc2f946bb5b4acf57de267503085af4760d7486dc0020e492" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "frozendict", specifier = ">=2.4.6" },
-    { name = "maturin", specifier = ">=1.8.2" },
-    { name = "msgspec", specifier = ">=0.19.0" },
-]
-
-[[package]]
-name = "pyo3-antelope-rs"
-version = "1.0.0"
-source = { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-win_amd64.whl" }
-resolution-markers = [
-    "platform_machine == 'AMD64' and sys_platform == 'win32'",
-]
-dependencies = [
-    { name = "frozendict", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
-    { name = "maturin", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
-    { name = "msgspec", marker = "platform_machine == 'AMD64' and sys_platform == 'win32'" },
-]
-wheels = [
-    { url = "https://github.com/openrepublic/pyo3-antelope-rs/releases/download/v1.0.0/pyo3_antelope_rs-1.0.0-cp39-abi3-win_amd64.whl", hash = "sha256:6edd536fc982467584304e8869ba517f33d672c02ed85ee9b6731c26bc86ab04" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "frozendict", specifier = ">=2.4.6" },
-    { name = "maturin", specifier = ">=1.8.2" },
-    { name = "msgspec", specifier = ">=0.19.0" },
+    { url = "https://files.pythonhosted.org/packages/7b/48/75f79ad7769b7728eacbb09d6b5746aae0614bc03bc8093604f3a3137389/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:7ae40dc5bdbdc9757f11c2d46a222b341284679561c9066aa859f9e55a5192a2", size = 646777, upload-time = "2025-05-30T18:07:21.675Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/50/873df627d156342ae9df77b3f74e4a7decb847358894ffe28e3610cbce79/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:72603eb4078939349752122862dae991a13f630bb3778c0f7d761dde44a9aa10", size = 624705, upload-time = "2025-05-30T18:07:23.418Z" },
+    { url = "https://files.pythonhosted.org/packages/29/53/7bec7a90100b06a1ec1abeee3d1c4c78ea97a0852fb065df927b049cabb1/pyo3_antelope_rs-1.0.0-cp39-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:091da59a23e6331272de78898b019db0a0141eaf28b4be8a3ba8ba4dc5d5cfed", size = 788697, upload-time = "2025-05-30T18:07:24.468Z" },
+    { url = "https://files.pythonhosted.org/packages/91/62/589743c0693d14cc43b9392e0574fd3622a46e77e4be9857a606446a3b40/pyo3_antelope_rs-1.0.0-cp39-abi3-win_amd64.whl", hash = "sha256:f0d32f06cae76bac440c1668648069ee7bd7283ab2a8409b4c2fd53c5b81f9fa", size = 483729, upload-time = "2025-05-30T18:07:25.82Z" },
 ]
 
 [[package]]
