@@ -476,24 +476,10 @@ static PyObject *unpack_symbol_code(const char *__buf, size_t __buf_len, size_t 
     );
 }
 
-static PyObject *unpack_rd160(const char *__buf, size_t __buf_len, size_t *__consumed)
-{
-    return unpack_raw(
-        __buf, 20, __buf_len, __consumed
-    );
-}
-
 static PyObject *unpack_checksum160(const char *__buf, size_t __buf_len, size_t *__consumed)
 {
     return unpack_raw(
         __buf, 20, __buf_len, __consumed
-    );
-}
-
-static PyObject *unpack_sha256(const char *__buf, size_t __buf_len, size_t *__consumed)
-{
-    return unpack_raw(
-        __buf, 32, __buf_len, __consumed
     );
 }
 

@@ -32,12 +32,6 @@ else:
         fcntl.flock(fd, fcntl.LOCK_UN)
 
 
-_RAW_TYPE_RE = re.compile(r'^raw\(\d+\)$')
-
-def is_raw_type(name: str) -> bool:
-    return name == 'raw' or _RAW_TYPE_RE.match(name)
-
-
 def normalize_dict(d: dict) -> dict:
     return json.loads(
         json.dumps(d, sort_keys=True, cls=JSONHexEncoder)

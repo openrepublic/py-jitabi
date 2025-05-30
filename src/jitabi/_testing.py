@@ -19,20 +19,23 @@ import random
 import string
 import weakref
 import logging
+from typing import Callable
 from pathlib import Path
 
 from deepdiff import DeepDiff
 
 from jitabi import JITContext
 from jitabi.utils import JSONHexEncoder, normalize_dict
+from jitabi.protocol import IOTypes
 
-from jitabi.protocol import (
+from antelope_rs import (
+    ABIView,
+    builtin_types
+)
+
+from antelope_rs.abi import (
     TypeModifier,
-    IOTypes,
-    is_raw_type,
-    is_std_type,
-    solve_cls_alias,
-    ABIView
+    suffix_for
 )
 
 
@@ -68,7 +71,7 @@ def _signed_int(rng, bits: int) -> int:
     return val - (sign_bit << 1) if val & sign_bit else val
 
 
-def _make_generators(rng) -> dict[str, callable[[], object]]:
+def _make_generators(rng) -> dict[str, Callable[[], IOTypes]]:
     '''
     Build a fresh dispatch table that closes over *rng*.
 
@@ -94,6 +97,17 @@ def _make_generators(rng) -> dict[str, callable[[], object]]:
         'float32': lambda: _rand(rng) * 2.0 - 1.0,
         'float64': lambda: _rand(rng) * 2.0e4 - 1.0e4,
 
+        # float128 just 16 random bytes
+        'float128': lambda: _randbytes(rng, 16),
+
+        # time
+        'time_point': lambda: _randbits(rng, 64),
+        'time_point_sec': lambda: _randbits(rng, 32),
+        'block_timestamp_type': lambda: _randbits(rng, 32),
+
+        # account name
+        'name': lambda: _randbits(rng, 64),
+
         # blobs & ASCII strings
         'bytes': lambda: _randbytes(rng, _randbits(rng, 4) & 0x0F),
         'string': lambda: ''.join(
@@ -102,21 +116,45 @@ def _make_generators(rng) -> dict[str, callable[[], object]]:
                 k=(_randbits(rng, 4) & 0x0C) | _randbits(rng, 2)
             )
         ),
+
+        # checksums
+        'checksum160': lambda: _randbytes(rng, 20),
+        'checksum256': lambda: _randbytes(rng, 32),
+        'checksum512': lambda: _randbytes(rng, 64),
+
+        'public_key': lambda: _randbytes(rng, 34),
+        'signature': lambda: _randbytes(rng, 66),
+
+        # asset related
+        'symbol': lambda: _randbits(rng, 64),
+        'symbol_code': lambda: _randbits(rng, 64),
+        'asset': lambda: {
+            'amount': _signed_int(rng, 64),
+            'symbol': _randbits(rng, 64)
+        },
+        'extended_asset': lambda: {
+            'quantity': {
+                'amount': _signed_int(rng, 64),
+                'symbol': _randbits(rng, 64)
+            },
+            'contract': _randbits(rng, 64)
+        },
     }
 
 
 # RNG-aware cache
+_RNG = random.Random()
 _GLOBAL_GENERATORS = _make_generators(random)
 
-_GEN_CACHE: 'weakref.WeakKeyDictionary[random.Random, dict[str, callable]]'
+_GEN_CACHE: 'weakref.WeakKeyDictionary[random.Random, dict[str, Callable]]'
 _GEN_CACHE = weakref.WeakKeyDictionary()
 
 
-def _generators_for(rng) -> dict[str, callable[[], object]]:
+def _generators_for(rng) -> dict[str, Callable[[], IOTypes]]:
     '''
     Return the dispatch table for *rng*, building it once if necessary.
     '''
-    if rng is random:  # stdlib’s singleton module
+    if rng is _RNG:  # stdlib’s singleton module
         return _GLOBAL_GENERATORS
 
     try:
@@ -130,8 +168,8 @@ def _generators_for(rng) -> dict[str, callable[[], object]]:
 def random_std_type(
     type_name: str,
     *,
-    rng: random.Random | None = None
-):
+    rng: random.Random = _RNG
+) -> IOTypes:
     '''
     Generate a random value for *type_name* using *rng*.
 
@@ -142,8 +180,6 @@ def random_std_type(
     rng : random.Random | None
         Source of randomness.  Defaults to the stdlib global RNG.
     '''
-    rng = rng or random
-
     if type_name.startswith('raw(') and type_name.endswith(')'):
         size = int(type_name[4:-1])
         return _randbytes(rng, size)
@@ -170,12 +206,6 @@ def assert_dict_eq(a: dict, b: dict):
         raise AssertionError(f'Differences found: {dump}')
 
 
-_suffixes: dict[TypeModifier, str] = {
-    TypeModifier.ARRAY: '[]',
-    TypeModifier.OPTIONAL: '?',
-    TypeModifier.EXTENSION: '$',
-}
-
 def _rest_type_string(base: str, mods: list[TypeModifier]) -> str:
     '''
     Re-constitute the inner-type string by appending the remaining
@@ -183,7 +213,7 @@ def _rest_type_string(base: str, mods: list[TypeModifier]) -> str:
 
     '''
     for m in reversed(mods):
-        base += _suffixes[m]
+        base += suffix_for(m)
     return base
 
 def random_abi_type(
@@ -196,7 +226,7 @@ def random_abi_type(
     chance_of_none: float = 0.5,
     chance_delta: float = 0.5,
     type_args: dict[str, dict] = {},
-    rng: random.Random = random,
+    rng: random.Random = _RNG,
 ) -> IOTypes:
     '''
     Generate a random value that is valid for *type_name* according to *abi*,
@@ -225,16 +255,11 @@ def random_abi_type(
     modifiers = list(resolved.modifiers)
     base_type = resolved.resolved_name
 
-    # check if a raw was resolved and rebuild base_type
-    is_raw = is_raw_type(base_type)
-    if is_raw and len(resolved.args) == 1:
-        base_type = f'raw({resolved.args[0]})'
-
     # handle array / optional / extension layers iteratively
     while modifiers:
         outer = modifiers.pop(0)
 
-        if outer is TypeModifier.ARRAY:
+        if outer == 'array':
             # shrink bounds for deeper arrays
             pre_min = kwargs['min_list_size']
             pre_max = kwargs['max_list_size']
@@ -248,7 +273,7 @@ def random_abi_type(
                 for _ in range(size)
             ]
 
-        if outer in (TypeModifier.OPTIONAL, TypeModifier.EXTENSION):
+        if outer in ('optional', 'extension'):
             # decide whether to produce None
             if rng.random() < kwargs['chance_of_none']:
                 return None
@@ -265,7 +290,7 @@ def random_abi_type(
         raise AssertionError(f'unknown modifier {outer!r}')
 
     # no more modifiers - generate concrete data
-    if is_raw or is_std_type(base_type):
+    if base_type in builtin_types:
         return random_std_type(base_type, rng=rng)
 
     # variant
@@ -281,10 +306,15 @@ def random_abi_type(
     struct = abi.struct_map[base_type]
 
     # recurse into base struct first
-    obj = (
+    ioobj = (
         {} if not struct.base
         else random_abi_type(abi, struct.base, **kwargs)
     )
+
+    if not isinstance(ioobj, dict):
+        raise TypeError(f'Expected base type to be a struct, instead got {ioobj}')
+
+    obj: dict = ioobj
 
     # populate fields
     obj |= {
@@ -338,13 +368,11 @@ def load_abis(whitelist: list[str] = _default_abi_whitelist) -> list[tuple[str, 
             if p.stem not in whitelist:
                 continue
 
-            cls = solve_cls_alias(p.stem)
-
-            logger.info(f'Loading ABI: {p.stem} using {cls.__name__}')
+            logger.info(f'Loading ABI: {p.stem}')
 
             try:
                 abis.append((
-                    p.stem, ABIView.from_file(p, cls=cls)
+                    p.stem, ABIView.from_file(p, cls=p.stem)
                 ))
 
             except Exception:
@@ -355,7 +383,7 @@ def load_abis(whitelist: list[str] = _default_abi_whitelist) -> list[tuple[str, 
 
 
 def bootstrap_cache(
-    abis: list[str, ABIView] = load_abis(),
+    abis: list[tuple[str, ABIView]] = load_abis(),
     cache_path: Path = testing_cache_dir,
     force_reload: bool = False
 ) -> None:
@@ -401,7 +429,7 @@ def iter_type_meta():
 
 def measure_leaks_in_call(
     trials: int,
-    fn: callable,
+    fn: Callable,
     *args,
 ) -> int:
     '''

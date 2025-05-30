@@ -521,19 +521,9 @@ static ssize_t pack_symbol_code(PyObject *__obj, char *__dst, size_t __dst_len)
     return pack_uint64(__obj, __dst, __dst_len);
 }
 
-static ssize_t pack_rd160(PyObject *__obj, char *__dst, size_t __dst_len)
-{
-    return pack_raw(__obj, 20, __dst, __dst_len);
-}
-
 static ssize_t pack_checksum160(PyObject *__obj, char *__dst, size_t __dst_len)
 {
     return pack_raw(__obj, 20, __dst, __dst_len);
-}
-
-static ssize_t pack_sha256(PyObject *__obj, char *__dst, size_t __dst_len)
-{
-    return pack_raw(__obj, 32, __dst, __dst_len);
 }
 
 static ssize_t pack_checksum256(PyObject *__obj, char *__dst, size_t __dst_len)

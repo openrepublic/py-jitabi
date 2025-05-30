@@ -24,11 +24,6 @@ from jitabi.sanitize import (
     check_type,
     check_ident
 )
-from jitabi.protocol import (
-    is_raw_type,
-    is_std_type,
-    ABIView,
-)
 from jitabi.templates import (
     module_tmpl,
     unpack_alias_tmpl,
@@ -39,13 +34,28 @@ from jitabi.templates import (
     pack_struct_tmpl,
 )
 
+from antelope_rs import (
+    ABIView,
+    builtin_types
+)
+
 
 logger = logging.getLogger(__name__)
 
 
+_bytes_types: set[str] = {
+    'bytes',
+    'float128',
+    'checksum160',
+    'checksum256',
+    'checksum512',
+    'public_key',
+    'signature'
+}
+
+
 def try_c_source_from_abi(
     name: str,
-    abi_hash: str,
     abi: ABIView
 ) -> str:
     '''
@@ -96,7 +106,7 @@ def try_c_source_from_abi(
         anew = a.new_type_name
         afrom = a.type_
         check_ident(anew, f'alias {anew} -> {afrom}')
-        check_ident(afrom, f'alias {anew} -> {afrom}', allow_raw=True)
+        check_ident(afrom, f'alias {anew} -> {afrom}')
 
         if anew in alias_defs:
             old_target = alias_defs.get(anew, None)
@@ -133,10 +143,9 @@ def try_c_source_from_abi(
             var_call = abi.resolve_type(variant)
             var_type = var_call.resolved_name
 
-            is_std = is_std_type(var_type)
-            is_raw = not is_std and is_raw_type(var_type)
+            is_std = var_type in builtin_types
 
-            if is_raw or var_type == 'bytes':
+            if var_type in _bytes_types:
                 targets['bytes'] = i
 
             elif is_std:
@@ -161,7 +170,7 @@ def try_c_source_from_abi(
             variants.append({
                 'name': variant,
                 'call': var_call,
-                'is_std': is_std or is_raw
+                'is_std': is_std
             })
 
         functions.append({
@@ -193,16 +202,14 @@ def try_c_source_from_abi(
 
 def c_source_from_abi(
     name: str,
-    abi_hash: str,
     abi: ABIView
 ) -> str:
     try:
-        return try_c_source_from_abi(name, abi_hash, abi)
+        return try_c_source_from_abi(name, abi)
 
     except Exception as e:
         logger.error(
-            'While generating C source:\n'
-            f'\tname: {name}'
-            f'\tabi_hash: {abi_hash}'
+            'While generating C source for '
+            f'name: {name}'
         )
         raise e

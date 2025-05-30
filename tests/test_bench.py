@@ -2,7 +2,6 @@ import os
 import pytest
 
 from jitabi import JITContext
-from jitabi.protocol import ABIView
 from jitabi._testing import (
     inside_ci,
     assert_dict_eq,
@@ -10,6 +9,8 @@ from jitabi._testing import (
     testing_abi_dir,
     random_abi_type
 )
+
+from antelope_rs import ABIView
 
 
 if 'PYTEST_XDIST_WORKER' in os.environ:

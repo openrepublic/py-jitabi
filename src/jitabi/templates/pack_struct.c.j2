@@ -6,10 +6,7 @@
 {%- macro pack_fn(call, val='__field', indent_count=8) -%}
 pack_{{ call.resolved_name }}(
 {%- call m.indent(indent_count) %}
-    {{ val }}
-    {%- for a in call.args -%}
-    , {{ a }}
-    {%- endfor %},
+    {{ val }},
     __dst + __offset,
     __dst_len - __offset
 );
@@ -30,16 +27,16 @@ pack_{{ call.resolved_name }}(
 {%- call m.indent(depth + 4) %}
 {% set outer = mods[0] %}
 {% set inner = mods[1:] %}
-{%- if outer.name == 'OPTIONAL' -%}
+{%- if outer == 'optional' -%}
 __dst[__offset++] = (char)(({{ val }} != Py_None));
 if ({{ val }} != Py_None && {{ val }} != NULL) {
 {{- pack_mod_chain(call, inner, depth, ctx ~ '_opt', val) }}
 }
-{%- elif outer.name == 'EXTENSION' -%}
+{%- elif outer == 'extension' -%}
 if ({{ val }} != Py_None && {{ val }} != NULL) {
 {{- pack_mod_chain(call, inner, depth, ctx ~ '_ext', val) }}
 }
-{%- elif outer.name == 'ARRAY' -%}
+{%- elif outer == 'array' -%}
 if (!PyList_Check({{ val }})) {
     PyErr_SetString(PyExc_TypeError, "expected list for field '{{ ctx }}'");
     return -1;

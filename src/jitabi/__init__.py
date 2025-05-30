@@ -35,6 +35,8 @@ import hashlib
 from types import ModuleType
 from pathlib import Path
 
+from antelope_rs import ABIView
+
 import jitabi.codegen as codegen
 
 from jitabi.cache import (
@@ -43,8 +45,6 @@ from jitabi.cache import (
     Cache
 )
 from jitabi.compiler import compile_module
-from jitabi.protocol import ABIDef, ABIView
-
 from jitabi.utils import detect_working_compiler
 
 
@@ -109,7 +109,6 @@ class JITContext:
         self,
         key: CacheKey,
         abi: ABIView,
-        abi_location: Path,
         *,
         force_reload: bool = False,
     ) -> str:
@@ -131,7 +130,6 @@ class JITContext:
         logger.debug(f'Generating new C source for {key})')
         source = codegen.c_source_from_abi(
             key.mod_name,
-            key.src_hash,
             abi
         )
 
@@ -194,7 +192,7 @@ class JITContext:
     def module_for_abi(
         self,
         name: str,
-        abi: ABIDef | ABIView,
+        abi: ABIView,
         *,
         force_reload: bool = False,
         params: dict | ModuleParams = {}
@@ -234,10 +232,10 @@ class JITContext:
         mod_dir = self.module_dir_for(key)
         mod_dir.mkdir(parents=True, exist_ok=True)
         abi_location = mod_dir / f'{name}.json'
-        abi_location.write_bytes(abi.definition.as_bytes())
+        abi_location.write_text(str(abi.definition))
 
         source = self._source_from_abi(
-            key, abi, abi_location,
+            key, abi,
             force_reload=force_reload
         )
 

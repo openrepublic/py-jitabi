@@ -4,9 +4,6 @@
 unpack_{{ call.resolved_name }}(
 {%- call m.indent(indent_count) %}
     b + __total,
-    {%- for a in call.args %}
-    {{ a }},
-    {% endfor %}
     buf_len - __total,
     &__consumed
 );
@@ -29,7 +26,7 @@ unpack_{{ call.resolved_name }}(
 {%- call m.indent(depth) %}
 {% set outer = mods[0] %}
 {% set inner = mods[1:] %}
-{%- if outer.name == 'OPTIONAL' -%}
+{%- if outer == 'optional' -%}
 if (__total >= buf_len) goto error;
 uint8_t __flag_{{ ctx }} = b[__total++];
 JITABI_LOG_DEBUG("optional: %u", __flag_{{ ctx }});
@@ -39,7 +36,7 @@ if (__flag_{{ ctx }}) {
     Py_INCREF(Py_None);
     {{ target }} = Py_None;
 }
-{%- elif outer.name == 'EXTENSION' -%}
+{%- elif outer == 'extension' -%}
 JITABI_LOG_DEBUG("pre extension buf_len: %lu total: %lu", buf_len, __total);
 if (buf_len - __total > 0) {
 {{- unpack_mod_chain(call, inner, target, depth, ctx ~ '_ext') }}
@@ -48,7 +45,7 @@ if (buf_len - __total > 0) {
     {{ target }} = Py_None;
 }
 JITABI_LOG_DEBUG("post extension buf_len: %lu total: %lu", buf_len, __total);
-{%- elif outer.name == 'ARRAY' -%}
+{%- elif outer == 'array' -%}
 size_t __len_{{ ctx }} = decode_varuint32(b + __total, &__consumed);
 __total += __consumed;
 {{ target }} = PyList_New(__len_{{ ctx }});

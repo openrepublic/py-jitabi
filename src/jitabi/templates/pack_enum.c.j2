@@ -3,12 +3,9 @@
 {%- macro pack_fn(call, indent_count=8) -%}
 pack_{{ call.resolved_name }}(
 {%- call m.indent(indent_count) %}
-    __obj
-    {%- for a in call.args %}
-    , {{ a }}
-    {%- endfor %}
-    , __dst + __varint_len
-    , __dst_len - __varint_len
+    __obj,
+    __dst + __varint_len,
+    __dst_len - __varint_len
 );
 {% endcall -%}
 {%- endmacro -%}
