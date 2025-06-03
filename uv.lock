@@ -1,13 +1,6 @@
 version = 1
 revision = 2
 requires-python = ">=3.10"
-resolution-markers = [
-    "platform_machine == 'x86_64' and sys_platform == 'linux'",
-    "platform_machine == 'AMD64' and sys_platform == 'win32'",
-    "platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "platform_machine == 'arm64' and sys_platform == 'darwin'",
-    "(platform_machine != 'arm64' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and sys_platform == 'linux') or (platform_machine != 'AMD64' and sys_platform == 'win32') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
-]
 
 [[package]]
 name = "attrs"
@@ -81,16 +74,16 @@ wheels = [
 
 [[package]]
 name = "hypothesis"
-version = "6.131.31"
+version = "6.131.32"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
     { name = "sortedcontainers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a9/2c/314f3d7b4089632c4bcf7059aa94b8a63e725b6963b3239f588ce157e9af/hypothesis-6.131.31.tar.gz", hash = "sha256:ab2fc07295b0e16d7cf7359edb4abb7c2436a0c324f1a371a64c755545a19d4f", size = 443699, upload-time = "2025-05-30T06:01:59.308Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8d/e6/de036f7b7a38807e7f39dfd56a1048220a27502e65546bfaa96fc278f369/hypothesis-6.131.32.tar.gz", hash = "sha256:9ef3376a6bf1f4a060fa150fe71fb5cabec93e6ebae0cb9bf93d44b55bd8f8d6", size = 443838, upload-time = "2025-05-30T18:19:32.468Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/59/89a698dac595539722a00d7773ad35ebcce38cf8945a41cb30f5e083c31d/hypothesis-6.131.31-py3-none-any.whl", hash = "sha256:e7516a09deb22939b96857802ba9c4de1aa0a9e00ab7314693170c952a8c3218", size = 508318, upload-time = "2025-05-30T06:01:54.576Z" },
+    { url = "https://files.pythonhosted.org/packages/97/22/676489fcba8a325f027d1f9d043da3a9f138ffad16d9480cf2bbcc812881/hypothesis-6.131.32-py3-none-any.whl", hash = "sha256:7a9fe633aea59b1ca2e2b0e48fca52566c6d857ba836bf598a8ddf51b2fe1317", size = 508550, upload-time = "2025-05-30T18:19:29.01Z" },
 ]
 
 [[package]]
@@ -320,7 +313,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "pyo3-antelope-rs", specifier = ">=1.0.0" },
+    { name = "pyo3-antelope-rs", specifier = ">=1.2.0" },
     { name = "setuptools", specifier = ">=80.7.1" },
 ]
 
@@ -346,19 +339,19 @@ wheels = [
 
 [[package]]
 name = "pyo3-antelope-rs"
-version = "1.0.0"
+version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "frozendict" },
     { name = "maturin" },
     { name = "msgspec" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d2/a1/19fecc20e6ddd9a39548cabaf27467e28b3ce962bdf77513fb5bf2da219e/pyo3_antelope_rs-1.0.0.tar.gz", hash = "sha256:7565f12f5fb95ba5e153a940267ea60dfded48a8e7040fb1fb076255e11b4a85", size = 27603, upload-time = "2025-05-30T18:07:27.152Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/67/c5/372af9087e90570337a016b56ed19ab922cea6a8fcb6898f002710e1db91/pyo3_antelope_rs-1.2.0.tar.gz", hash = "sha256:82862770283fea32c9ecc63aca634c3f31b985f34e1d927c669bdae96f34bfe6", size = 38625, upload-time = "2025-06-03T03:37:05.829Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7b/48/75f79ad7769b7728eacbb09d6b5746aae0614bc03bc8093604f3a3137389/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:7ae40dc5bdbdc9757f11c2d46a222b341284679561c9066aa859f9e55a5192a2", size = 646777, upload-time = "2025-05-30T18:07:21.675Z" },
-    { url = "https://files.pythonhosted.org/packages/aa/50/873df627d156342ae9df77b3f74e4a7decb847358894ffe28e3610cbce79/pyo3_antelope_rs-1.0.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:72603eb4078939349752122862dae991a13f630bb3778c0f7d761dde44a9aa10", size = 624705, upload-time = "2025-05-30T18:07:23.418Z" },
-    { url = "https://files.pythonhosted.org/packages/29/53/7bec7a90100b06a1ec1abeee3d1c4c78ea97a0852fb065df927b049cabb1/pyo3_antelope_rs-1.0.0-cp39-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:091da59a23e6331272de78898b019db0a0141eaf28b4be8a3ba8ba4dc5d5cfed", size = 788697, upload-time = "2025-05-30T18:07:24.468Z" },
-    { url = "https://files.pythonhosted.org/packages/91/62/589743c0693d14cc43b9392e0574fd3622a46e77e4be9857a606446a3b40/pyo3_antelope_rs-1.0.0-cp39-abi3-win_amd64.whl", hash = "sha256:f0d32f06cae76bac440c1668648069ee7bd7283ab2a8409b4c2fd53c5b81f9fa", size = 483729, upload-time = "2025-05-30T18:07:25.82Z" },
+    { url = "https://files.pythonhosted.org/packages/46/ce/7e6525bf9d08d078e990c049ddcd25930cefeced575ef224203bee9e5298/pyo3_antelope_rs-1.2.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:df4df73138ca219f3fcc87c39d90036bd3cea948a6a96f7d84a86cf0a01785a3", size = 746639, upload-time = "2025-06-03T03:37:01.389Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/1c/dc94345ede4e2bd94d7cfd6d92bc48c87492e99927af93f620eaa0025574/pyo3_antelope_rs-1.2.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:6ee7b17c3ed78fe9282a2a8295da6460a6f6519261b10d6ed9ce44e252b32bd9", size = 710848, upload-time = "2025-06-03T03:37:02.757Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/33/752eeaef3afb8cca2857bd57b5f072e97d026f36ad3e4fce7c2d55b82e55/pyo3_antelope_rs-1.2.0-cp39-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:4092c705b4f2513682c4cc3f7680a07180850800c43fd9508fd89ac5bdc031ae", size = 879340, upload-time = "2025-06-03T03:37:03.885Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/60/3cb2f9e74a7853ba51fbf2d56b04821445400769762dcb89bfee41aacbae/pyo3_antelope_rs-1.2.0-cp39-abi3-win_amd64.whl", hash = "sha256:33abe53c908da92452426b2b52a490aab0261a7740073ca3b0c17b196057477e", size = 560738, upload-time = "2025-06-03T03:37:04.905Z" },
 ]
 
 [[package]]

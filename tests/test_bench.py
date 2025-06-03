@@ -4,10 +4,8 @@ import pytest
 from jitabi import JITContext
 from jitabi._testing import (
     inside_ci,
-    assert_dict_eq,
     testing_cache_dir,
     testing_abi_dir,
-    random_abi_type
 )
 
 from antelope_rs import ABIView
@@ -26,7 +24,7 @@ if inside_ci:
     )
 
 
-max_time: float = 2 * 60
+max_time: float = float(os.getenv('JITABI_MAX_TIME', str(2. * 60.)))
 stdabi = ABIView.from_file(
     testing_abi_dir / 'standard.json',
     cls='std'
@@ -45,8 +43,7 @@ _, std_no_inline = jit.module_for_abi(
 
 
 # generate fat block
-input_fat_sample = random_abi_type(
-    stdabi,
+input_fat_sample = stdabi.random_of(
     'signed_block',
     type_args={
         'transaction_receipt[]': {
@@ -63,8 +60,7 @@ packed_fat_sample: bytes = std.pack_signed_block(input_fat_sample)
 
 
 # generate empty block
-input_sample = random_abi_type(
-    stdabi,
+input_sample = stdabi.random_of(
     'signed_block',
     type_args={
         'transaction_receipt[]': {
@@ -103,7 +99,7 @@ def test_unpack_fat_block(benchmark, module):
     )
 
     # sanity check
-    assert_dict_eq(input_fat_sample, unpacked)
+    stdabi.assert_deep_eq('signed_block', input_fat_sample, unpacked)
 
 
 @pytest.mark.benchmark(
@@ -133,4 +129,4 @@ def test_unpack_empty_block(benchmark, module):
     )
 
     # sanity check
-    assert_dict_eq(input_sample, unpacked)
+    stdabi.assert_deep_eq('signed_block', input_sample, unpacked)

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import os
-import re
-import json
 import sysconfig
 import subprocess
 
@@ -30,28 +28,6 @@ else:
 
     def fd_unlock(fd):
         fcntl.flock(fd, fcntl.LOCK_UN)
-
-
-def normalize_dict(d: dict) -> dict:
-    return json.loads(
-        json.dumps(d, sort_keys=True, cls=JSONHexEncoder)
-    )
-
-
-class JSONHexEncoder(json.JSONEncoder):
-    def default(self, obj):
-        # hex string on bytes
-        if isinstance(obj, (bytes, bytearray)):
-            return f'bytes({obj.hex()})'
-
-        if isinstance(obj, type):
-            return str(obj)
-
-        try:
-            return super().default(obj)
-
-        except Exception:
-            return str(obj)
 
 
 def detect_working_compiler() -> str | None:

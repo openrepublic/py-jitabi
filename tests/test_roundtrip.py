@@ -10,15 +10,13 @@ from hypothesis import (
     strategies as st,
     HealthCheck
 )
+from antelope_rs.testing import AntelopeDebugEncoder
 
-from jitabi.utils import JSONHexEncoder
 from jitabi._testing import (
-    assert_dict_eq,
     default_max_examples,
     default_batch_size,
     default_test_deadline,
     iter_type_meta,
-    random_abi_type
 )
 
 
@@ -50,17 +48,17 @@ def test_roundtrip(case_info, batch, rng, memory_guard):
     For this single (ABI, type) do example_quota round-trip checks.
 
     '''
-    mod_name, abi, key, module, type_name = case_info
+    mod_name, abi, _, module, type_name = case_info
 
     case_name = f'{mod_name}:{type_name}:{batch}'
 
     pack_fn = getattr(module, f'pack_{type_name}')
     unpack_fn = getattr(module, f'unpack_{type_name}')
 
-    input_value = random_abi_type(abi, type_name, rng=rng)
+    input_value = abi.random_of(type_name, rng=rng)
     logger.debug(
         f'Generated input for {case_name}: %s',
-        json.dumps(input_value, indent=4, cls=JSONHexEncoder)
+        json.dumps(input_value, indent=4, cls=AntelopeDebugEncoder)
     )
 
     packed = pack_fn(input_value)
@@ -71,12 +69,12 @@ def test_roundtrip(case_info, batch, rng, memory_guard):
 
     logger.debug(
         f'Unpacked {case_name}: %s',
-        json.dumps(unpacked, indent=4, cls=JSONHexEncoder)
+        json.dumps(unpacked, indent=4, cls=AntelopeDebugEncoder)
     )
 
     event(case_name)
 
-    assert_dict_eq(input_value, unpacked)
+    abi.assert_deep_eq(type_name, input_value, unpacked)
 
     logger.debug(f'Roundtrip passed for {case_name}!')
 
@@ -94,29 +92,36 @@ def test_roundtrip(case_info, batch, rng, memory_guard):
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )
 def test_roundtrip_distpach(case_info, rng):
-    mod_name, abi, key, module, type_name = case_info
+    mod_name, abi, _, module, type_name = case_info
 
     case_name = f'{mod_name}:{type_name}'
 
-    input_value = random_abi_type(abi, type_name, rng=rng)
+    input_value = abi.random_of(type_name, rng=rng)
     logger.debug(
         f'Generated input for {case_name}: %s',
-        json.dumps(input_value, indent=4, cls=JSONHexEncoder)
+        json.dumps(input_value, indent=4, cls=AntelopeDebugEncoder)
     )
 
     packed = module.pack(type_name, input_value)
+    rs_packed = abi.pack(type_name, input_value)
+
+    assert packed == rs_packed
 
     logger.debug(f'Packed {case_name} into {len(packed):,} bytes.')
 
     unpacked = module.unpack(type_name, packed)
+    rs_unpacked = abi.unpack(type_name, rs_packed)
 
     logger.debug(
         f'Unpacked {case_name}: %s',
-        json.dumps(unpacked, indent=4, cls=JSONHexEncoder)
+        json.dumps(unpacked, indent=4, cls=AntelopeDebugEncoder)
     )
 
     event(case_name)
 
-    assert_dict_eq(input_value, unpacked)
+    abi.assert_deep_eq(type_name, input_value, unpacked)
+    abi.assert_deep_eq(type_name, input_value, rs_unpacked)
 
     logger.debug(f'Roundtrip passed for {case_name}!')
+
+

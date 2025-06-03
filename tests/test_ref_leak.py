@@ -12,8 +12,7 @@ from hypothesis import (
     strategies as st,
     HealthCheck
 )
-
-from jitabi.utils import JSONHexEncoder
+from antelope_rs.testing import AntelopeDebugEncoder
 from jitabi._testing import (
     inside_ci,
     default_max_examples,
@@ -21,7 +20,6 @@ from jitabi._testing import (
     default_test_deadline,
     measure_leaks_in_call,
     iter_type_meta,
-    random_abi_type
 )
 
 
@@ -50,7 +48,7 @@ BATCH_SIZE = min(max_examples, default_batch_size)
 ROUNDS = (EXAMPLE_QUOTA + BATCH_SIZE - 1) // BATCH_SIZE
 
 
-@pytest.mark.parametrize("batch", range(ROUNDS))
+@pytest.mark.parametrize('round', range(ROUNDS))
 @pytest.mark.parametrize(
     'case_info',
     iter_type_meta(),
@@ -65,7 +63,7 @@ ROUNDS = (EXAMPLE_QUOTA + BATCH_SIZE - 1) // BATCH_SIZE
     deadline=default_test_deadline,
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )
-def test_ref_leaks(case_info, batch, rng, memory_guard):
+def test_ref_leaks(case_info, round, rng, memory_guard):
     '''
     Auto detect generated extension modules ref leaks.
 
@@ -79,20 +77,20 @@ def test_ref_leaks(case_info, batch, rng, memory_guard):
     the function calls is 0.
 
     '''
-    mod_name, abi, key, module, type_name = case_info
+    mod_name, abi, _, module, type_name = case_info
 
-    case_name = f'{mod_name}:{type_name}'
+    case_name = f'{mod_name}:{type_name}:{round}'
 
     event(case_name)
 
     pack_fn = getattr(module, f'pack_{type_name}')
     unpack_fn = getattr(module, f'unpack_{type_name}')
 
-    input_value = random_abi_type(abi, type_name, rng=rng)
+    input_value = abi.random_of(type_name, rng=rng)
 
     logger.debug(
         'Generated input: %s',
-        json.dumps(input_value, indent=4, cls=JSONHexEncoder)
+        json.dumps(input_value, indent=4, cls=AntelopeDebugEncoder)
     )
 
     # pack

@@ -65,6 +65,8 @@ def _compile_with_distutils(
     is_unix: bool = cc.compiler_type == 'unix'
 
     include_py = sysconfig.get_config_var('INCLUDEPY')
+    if not isinstance(include_py, str):
+        raise RuntimeError(f'Could not find python include dir at var INCLUDEPY: {include_py}')
 
     # extra_postargs for cc.compile call
     extra: list[str] = (
@@ -78,7 +80,7 @@ def _compile_with_distutils(
     )
 
     specific_type = detect_compiler_type(
-        Path(cc.compiler[0]).name
+        cc.executables['compiler'][0]
         if is_unix
         else 'cl.exe'
     )
@@ -99,6 +101,9 @@ def _compile_with_distutils(
     if cc.compiler_type == 'msvc':
         # need to add -lpythonVERSION lib implicitly
         ver = sysconfig.get_config_var('VERSION')
+        if not isinstance(ver, str):
+            raise RuntimeError(f'Failed to find python version at var VERSION: {ver}')
+
         libname = f'python{ver.replace(".", "")}'
 
         # maybe debug build of CPython?
@@ -126,6 +131,7 @@ def _compile_with_distutils(
     start_compile = time.time()
     objs = cc.compile(
         [str(src)],
+        output_dir=str(build),
         include_dirs=[include_py],
         extra_postargs=extra
     )
@@ -134,10 +140,11 @@ def _compile_with_distutils(
 
     start_link = time.time()
     ext = sysconfig.get_config_var('EXT_SUFFIX')
-    target = build / f'{name}{ext}'
+    target = f'{name}{ext}'
     cc.link_shared_object(
         objs,
         str(target),
+        output_dir=str(build),
         libraries=libs,
         library_dirs=library_dirs,
     )

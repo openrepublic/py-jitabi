@@ -8,8 +8,8 @@ dependencies = [
     'jinja2>=3.1.6',
     'setuptools>=80.7.1',
 
-    # 'pyo3-antelope-rs-dev',
-    'pyo3-antelope-rs>=1.0.0',
+    # 'pyo3-antelope-rs',
+    'pyo3-antelope-rs>=1.2.0',
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -21,9 +21,9 @@ include = ['src/jitabi']
 [tool.hatch.build.targets.wheel.sources]
 'src/jitabi' = 'jitabi'
 
-[tool.uv.sources.pyo3-antelope-rs-dev]
-path = '../pyo3-antelope-rs'
-editable = true
+# [tool.uv.sources.pyo3-antelope-rs]
+# path = '../pyo3-antelope-rs'
+# editable = true
 
 [build-system]
 requires = ['hatchling']
@@ -42,3 +42,8 @@ dev = [
 
 [tool.uv]
 default-groups = []
+
+[tool.pytest.ini_options]
+addopts = [
+  '--show-capture=no',
+]

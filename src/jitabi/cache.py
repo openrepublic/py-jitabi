@@ -33,12 +33,17 @@ import os
 import json
 import logging
 import sysconfig
-import importlib
 
 from types import ModuleType
 from pathlib import Path
 from contextlib import contextmanager as cm
 from dataclasses import dataclass
+
+from importlib.util import (
+    spec_from_file_location,
+    module_from_spec
+)
+from importlib.machinery import ExtensionFileLoader
 
 from jitabi.utils import (
     fd_lock,
@@ -63,13 +68,21 @@ def import_module(
 ) -> ModuleType:
     logger.debug(f'Importing module {mod_name} from {mod_path}')
 
-    spec = importlib.util.spec_from_file_location(
+    spec = spec_from_file_location(
         mod_name,
         str(mod_path),
-        loader=importlib.machinery.ExtensionFileLoader(mod_name, str(mod_path))
+        loader=ExtensionFileLoader(mod_name, str(mod_path))
     )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    if not spec:
+        raise ImportError(
+            f'spec_from_file_location returned None!, failed to load {mod_name} at {mod_path}'
+        )
+
+    module = module_from_spec(spec)
+
+    loader = getattr(spec, 'loader')
+    loader.exec_module(module)
+
     return module
 
 
