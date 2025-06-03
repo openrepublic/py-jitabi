@@ -49,7 +49,12 @@ default_abi_whitelist_str: str = ','.join(_default_abi_whitelist)
 
 tests_dir = Path(__file__).parent.parent.parent / 'tests'
 testing_abi_dir = tests_dir / 'abis'
-testing_cache_dir =  tests_dir / '.pytest-jitabi'
+
+testing_cache_dir =  (
+    tests_dir / '.pytest-jitabi'
+    if sys.platform != 'win32'
+    else Path(Path(sys.executable).anchor) / '.pytest-jitabi'
+)
 
 
 def load_abis(whitelist: list[str] = _default_abi_whitelist) -> list[tuple[str, ABIView]]:
